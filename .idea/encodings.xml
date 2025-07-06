@@ -7,6 +7,8 @@
     <file url="file://$PROJECT_DIR$/caching-core/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/caching-redis-adapter/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/caching-redis-adapter/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/caching-reporter/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/caching-reporter/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/caching-spring-boot-starter/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/caching-spring-boot-starter/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
