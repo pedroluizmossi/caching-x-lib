@@ -38,7 +38,9 @@
         <module>caching-caffeine-adapter</module>
         <module>caching-redis-adapter</module>
         <module>caching-reporter</module>
+        <module>caching-spring-boot-starter</module>
     </modules>
+
 
     <dependencyManagement>
         <dependencies>
