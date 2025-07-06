@@ -60,15 +60,20 @@ public class CachingAutoConfiguration {
         @ConditionalOnMissingBean(name = "cacheRedisTemplate")
         public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory connectionFactory, ObjectMapper objectMapper) {
             RedisTemplate<String, Object> template = new RedisTemplate<>();
-            template.setConnectionFactory(connectionFactory);
-            template.setKeySerializer(new StringRedisSerializer());
-            template.setValueSerializer(new GenericJackson2JsonRedisSerializer(objectMapper));
+            ObjectMapper mapper = objectMapper.copy();
+            mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(), ObjectMapper.DefaultTyping.NON_FINAL);
+            GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(mapper);
+            template.setValueSerializer(serializer);
             return template;
         }
 
         @Bean("l2CacheProvider")
-        public CacheProvider l2CacheProvider(RedisTemplate<String, Object> redisTemplate) {
-            return new RedisCacheAdapter(redisTemplate, "cache:invalidation", Duration.ofMinutes(30));
+        public CacheProvider l2CacheProvider(RedisTemplate<String, Object> redisTemplate, CachingProperties properties) {
+            return new RedisCacheAdapter(
+                    redisTemplate,
+                    properties.getL2().getInvalidationTopic(),
+                    properties.getL2().getTtl()
+            );
         }
 
         @Bean
