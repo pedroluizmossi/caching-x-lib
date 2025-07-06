@@ -56,12 +56,31 @@ public class CachingAutoConfiguration {
     @ConditionalOnBean(RedisConnectionFactory.class)
     protected static class RedisCacheConfiguration {
 
+        /**
+         * Configures the RedisTemplate for caching.
+         * <p>
+         * This template uses a copy of the application's primary ObjectMapper but enables
+         * default typing to ensure that objects can be correctly deserialized from JSON.
+         * This adds a "@class" property to the stored JSON.
+         * <p>
+         * To use a custom serialization strategy, the user can define their own bean
+         * with the name "cacheRedisTemplate".
+         *
+         * @param connectionFactory the Redis connection factory
+         * @param objectMapper the primary ObjectMapper bean
+         * @return a configured RedisTemplate for caching
+         */
         @Bean
         @ConditionalOnMissingBean(name = "cacheRedisTemplate")
-        public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory connectionFactory, ObjectMapper objectMapper) {
+        public RedisTemplate<String, Object> cacheRedisTemplate(
+                RedisConnectionFactory connectionFactory,
+                ObjectMapper objectMapper) {
             RedisTemplate<String, Object> template = new RedisTemplate<>();
             ObjectMapper mapper = objectMapper.copy();
-            mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(), ObjectMapper.DefaultTyping.NON_FINAL);
+            mapper.activateDefaultTyping(
+                    mapper.getPolymorphicTypeValidator(),
+                    ObjectMapper.DefaultTyping.NON_FINAL
+            );
             GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(mapper);
             template.setValueSerializer(serializer);
             return template;

@@ -94,6 +94,34 @@ public RedisTemplate<String, Object> cacheRedisTemplate(
 }
 ```
 
+### Serialização de Objetos em Redis
+
+Por defeito, o caching-spring-boot-starter configura o RedisTemplate para usar Jackson (JSON) para serializar os objetos em cache. Para garantir que os objetos possam ser deserializados de volta para os seus tipos Java corretos, ativamos o "Default Typing" do Jackson.
+
+Isto significa que o JSON armazenado no Redis irá conter um atributo adicional `@class`.
+
+Se necessitar de controlo total sobre a serialização (por exemplo, para partilhar o cache com outras aplicações ou para remover o campo `@class`), pode definir o seu próprio bean de RedisTemplate com o nome `cacheRedisTemplate`.
+
+```java
+@Configuration
+public class CustomCacheConfig {
+    
+    @Bean
+    @Primary // Garante que este bean tem precedência
+    public RedisTemplate<String, Object> cacheRedisTemplate(
+            RedisConnectionFactory factory) {
+        
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(factory);
+        
+        // A sua lógica de serialização customizada aqui
+        template.setValueSerializer(new GenericJackson2JsonRedisSerializer()); 
+        
+        return template;
+    }
+}
+```
+
 ### Invalidation Handler
 
 Automatic setup of Redis pub/sub listener:
