@@ -120,11 +120,9 @@ class MultiLevelCacheServiceTest {
         cacheService.invalidate(key);
 
         // Then
-        // The implementation is currently only evicting from L2.
-        // To fix the bug, the invalidate method in MultiLevelCacheService
-        // should also call l1Cache.evict(key).
+        // A correção garante que ambos os caches, L1 e L2, sejam invalidados.
+        verify(l1Cache).evict(key);
         verify(l2Cache).evict(key);
-        verify(l1Cache, never()).evict(key); // This verifies the current buggy behavior.
     }
 
     @Test

@@ -86,10 +86,13 @@ public class MultiLevelCacheService implements CacheService {
     @Override
     public void invalidate(String key) {
         log.debug("Invalidating key: {}", key);
+
+        if (this.l1Cache != null) {
+            this.l1Cache.evict(key);
+        }
+
         if (this.l2Cache != null) {
             this.l2Cache.evict(key);
-        } else if (this.l1Cache != null) {
-            this.l1Cache.evict(key);
         }
     }
 }
