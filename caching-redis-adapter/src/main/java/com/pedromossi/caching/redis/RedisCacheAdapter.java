@@ -39,7 +39,7 @@ public class RedisCacheAdapter implements CacheProvider {
     public <T> T get(String key, Class<T> type) {
         try {
             Object value = redisTemplate.opsForValue().get(key);
-            if (value != null && type.isInstance(value)) {
+            if (type.isInstance(value)) {
                 return (T) value;
             }
         } catch (Exception e) {

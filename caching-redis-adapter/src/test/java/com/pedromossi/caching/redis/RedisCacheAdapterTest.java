@@ -3,7 +3,6 @@ package com.pedromossi.caching.redis;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -31,7 +30,7 @@ class RedisCacheAdapterTest {
     @BeforeEach
     void setUp() {
         // Configura o mock do RedisTemplate para retornar o mock do ValueOperations
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         redisCacheAdapter = new RedisCacheAdapter(redisTemplate, invalidationTopic, ttl);
     }
 
