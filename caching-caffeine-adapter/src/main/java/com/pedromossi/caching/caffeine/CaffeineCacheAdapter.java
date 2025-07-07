@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.pedromossi.caching.CacheProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
 
 /**
  * Caffeine cache adapter implementation for L1 (local) caching.
@@ -29,9 +30,24 @@ public class CaffeineCacheAdapter implements CacheProvider {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T get(String key, Class<T> type) {
+    public <T> T get(String key, ParameterizedTypeReference<T> typeRef) {
         Object value = cache.getIfPresent(key);
-        if (type.isInstance(value)) {
+        if (value == null) {
+            return null;
+        }
+
+        java.lang.reflect.Type requestedType = typeRef.getType();
+        Class<?> rawClass;
+        if (requestedType instanceof Class) {
+            rawClass = (Class<?>) requestedType;
+        } else if (requestedType instanceof java.lang.reflect.ParameterizedType) {
+            rawClass = (Class<?>) ((java.lang.reflect.ParameterizedType) requestedType).getRawType();
+        } else {
+            // Unsupported type for this check, returning null for safety.
+            return null;
+        }
+
+        if (rawClass.isInstance(value)) {
             return (T) value;
         }
         return null;

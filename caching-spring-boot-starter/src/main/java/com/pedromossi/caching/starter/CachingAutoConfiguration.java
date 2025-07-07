@@ -133,7 +133,7 @@ public class CachingAutoConfiguration {
      */
     @Bean("cachingTaskExecutor")
     @ConditionalOnMissingBean(name = "cachingTaskExecutor")
-    public Executor cachingTaskExecutor(CachingProperties properties) {
+    public ExecutorService cachingTaskExecutor(CachingProperties properties) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         CachingProperties.AsyncProperties async = properties.getAsync();
         executor.setCorePoolSize(async.getCorePoolSize());
@@ -141,17 +141,17 @@ public class CachingAutoConfiguration {
         executor.setQueueCapacity(async.getQueueCapacity());
         executor.setThreadNamePrefix("cache-async-");
         executor.initialize();
-        return executor;
+        return executor.getThreadPoolExecutor();
     }
 
 
     @Bean
     public CacheService cacheService(
-            Optional<CacheProvider> l1CacheProvider,
-            Optional<CacheProvider> l2CacheProvider,
-            @Qualifier("cachingTaskExecutor") Executor executor
+            @Qualifier("l1CacheProvider") Optional<CacheProvider> l1CacheProvider,
+            @Qualifier("l2CacheProvider") Optional<CacheProvider> l2CacheProvider,
+            @Qualifier("cachingTaskExecutor") ExecutorService executorService
     ) {
-        return new MultiLevelCacheService(l1CacheProvider, l2CacheProvider, (ExecutorService) executor);
+        return new MultiLevelCacheService(l1CacheProvider, l2CacheProvider, executorService);
     }
 
     /**
