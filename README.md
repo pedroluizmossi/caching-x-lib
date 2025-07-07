@@ -185,7 +185,7 @@ caching:
 The default configuration provides:
 - **Core Pool Size**: 2 threads always available
 - **Max Pool Size**: Up to 50 threads during peak load
-- **Queue Capacity**: 10,000 pending operations can be queued
+- **Queue Capacity**: 1,000 pending operations can be queued
 
 Adjust these values based on your application's cache usage patterns and system resources.
 
