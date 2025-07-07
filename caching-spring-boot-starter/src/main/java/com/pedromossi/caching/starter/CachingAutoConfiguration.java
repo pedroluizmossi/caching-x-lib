@@ -56,18 +56,42 @@ public class CachingAutoConfiguration {
     protected static class RedisCacheConfiguration {
 
         /**
-         * Configures the RedisTemplate for caching.
+         * Creates a RedisTemplate configured for caching with secure JSON serialization.
          * <p>
          * This template uses a copy of the application's primary ObjectMapper with secure
          * serialization settings. Default typing is disabled to prevent deserialization
          * vulnerabilities. Objects are serialized/deserialized based on their declared
          * types using ParameterizedTypeReference in the cache service methods.
          * <p>
-         * To use a custom serialization strategy, the user can define their own bean
-         * with the name "cacheRedisTemplate".
+         * <strong>ObjectMapper Module Inheritance:</strong>
+         * The {@code objectMapper.copy()} method preserves all registered modules from the
+         * primary ObjectMapper, including JavaTimeModule, custom serializers, and deserializers.
+         * This ensures consistent serialization behavior between your application and cache.
+         * <p>
+         * <strong>When to provide a custom RedisTemplate:</strong>
+         * <ul>
+         *   <li>Advanced Jackson configuration (custom MixIns, PropertyNamingStrategies)</li>
+         *   <li>Alternative serialization formats (Protobuf, Avro, etc.)</li>
+         *   <li>Custom Redis key/value serialization strategies</li>
+         *   <li>Integration with external systems requiring specific JSON format</li>
+         * </ul>
+         * <p>
+         * To use a custom serialization strategy, define your own bean with the name
+         * "cacheRedisTemplate" and it will take precedence over this auto-configured bean.
+         * <p>
+         * Example of custom RedisTemplate:
+         * <pre>{@code
+         * @Bean
+         * public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
+         *     RedisTemplate<String, Object> template = new RedisTemplate<>();
+         *     template.setConnectionFactory(factory);
+         *     // Your custom serialization configuration here
+         *     return template;
+         * }
+         * }</pre>
          *
          * @param connectionFactory the Redis connection factory
-         * @param objectMapper the primary ObjectMapper bean
+         * @param objectMapper the primary ObjectMapper bean (modules will be copied)
          * @return a configured RedisTemplate for caching
          */
         @Bean
