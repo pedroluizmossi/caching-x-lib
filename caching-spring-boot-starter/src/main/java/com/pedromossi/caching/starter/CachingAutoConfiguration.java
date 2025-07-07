@@ -18,7 +18,6 @@ import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -29,10 +28,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.time.Duration;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -62,9 +58,10 @@ public class CachingAutoConfiguration {
         /**
          * Configures the RedisTemplate for caching.
          * <p>
-         * This template uses a copy of the application's primary ObjectMapper but enables
-         * default typing to ensure that objects can be correctly deserialized from JSON.
-         * This adds a "@class" property to the stored JSON.
+         * This template uses a copy of the application's primary ObjectMapper with secure
+         * serialization settings. Default typing is disabled to prevent deserialization
+         * vulnerabilities. Objects are serialized/deserialized based on their declared
+         * types using ParameterizedTypeReference in the cache service methods.
          * <p>
          * To use a custom serialization strategy, the user can define their own bean
          * with the name "cacheRedisTemplate".
@@ -79,13 +76,20 @@ public class CachingAutoConfiguration {
                 RedisConnectionFactory connectionFactory,
                 ObjectMapper objectMapper) {
             RedisTemplate<String, Object> template = new RedisTemplate<>();
-            ObjectMapper mapper = objectMapper.copy();
-            mapper.activateDefaultTyping(
-                    mapper.getPolymorphicTypeValidator(),
-                    ObjectMapper.DefaultTyping.NON_FINAL
-            );
-            GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(mapper);
+            template.setConnectionFactory(connectionFactory);
+
+            // Use a copy of the ObjectMapper without unsafe default typing
+            ObjectMapper secureMapper = objectMapper.copy();
+            // Do not activate default typing - this prevents deserialization vulnerabilities
+
+            GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(secureMapper);
+
+            template.setKeySerializer(new StringRedisSerializer());
             template.setValueSerializer(serializer);
+            template.setHashKeySerializer(new StringRedisSerializer());
+            template.setHashValueSerializer(serializer);
+            template.afterPropertiesSet();
+
             return template;
         }
 
