@@ -36,6 +36,7 @@ Caching-X is designed to provide high-performance caching solutions for Java app
 
 - **Multi-level Caching**: Automatic L1/L2 cache management
 - **Read-through Pattern**: Transparent data loading on cache misses
+- **Null Value Caching**: Proper handling of null values to prevent cache stampeding
 - **Distributed Invalidation**: Redis pub/sub for cache coherence
 - **Spring Boot Integration**: Auto-configuration and properties support
 - **Type Safety**: Generic support for cached objects
@@ -195,6 +196,39 @@ Adjust these values based on your application's cache usage patterns and system 
 1. **L1 Hit**: Data found in local Caffeine cache (fastest)
 2. **L2 Hit**: Data found in Redis, promoted to L1
 3. **Cache Miss**: Data loaded from source, stored in both L1 and L2
+
+### Null Value Handling
+
+The caching system properly handles null values using a **Null Value Object pattern**:
+
+#### Problem Solved
+Previously, when a data source returned `null`, it wasn't cached. This caused:
+- **Cache Stampeding**: Multiple requests for the same null data hitting the database
+- **Performance Issues**: No benefit from caching for legitimate null values
+- **Inconsistent Behavior**: Different treatment for null vs non-null values
+
+#### Solution: Null Sentinel Objects
+The system now uses an internal sentinel object to represent null values in cache:
+
+```java
+// Example: User biography is optional and can be null
+public String getUserBiography(Long userId) {
+    return cacheService.getOrLoad(
+        "user:bio:" + userId,
+        String.class,
+        () -> userRepository.findBiography(userId) // May return null
+    );
+}
+```
+
+**First call**: Database returns `null` → Sentinel stored in cache → Returns `null` to client
+**Second call**: Sentinel found in cache → Returns `null` to client (no database hit!)
+
+#### Benefits
+- **Performance**: Null values are served from cache, avoiding database calls
+- **Consistency**: All values (null and non-null) follow the same caching pattern
+- **Transparency**: Clients receive actual null values, never seeing internal sentinels
+- **Serialization Safe**: Sentinel objects work properly with distributed caches
 
 ### Invalidation Flow
 

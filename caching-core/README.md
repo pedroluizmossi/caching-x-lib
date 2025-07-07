@@ -54,13 +54,53 @@ The core implementation that orchestrates L1 and L2 cache layers.
 - **Promotion**: L2 hits are promoted to L1 automatically
 - **Fallback**: Graceful degradation if cache layers fail
 - **Read-through**: Automatic data loading on cache misses
+- **Null Value Caching**: Proper handling of null values to prevent cache stampeding
 
 **Cache Flow:**
 1. Check L1 cache first (fastest)
 2. If miss, check L2 cache
 3. If L2 hit, promote to L1 and return
 4. If complete miss, execute loader function
-5. Store result in both L1 and L2
+5. Store result in both L1 and L2 (including null values)
+
+## Null Value Handling
+
+The caching system properly handles null values using a **Null Value Object pattern**:
+
+### Problem Solved
+Previously, when a data source returned `null`, it wasn't cached. This caused:
+- **Cache Stampeding**: Multiple requests for the same null data hitting the database
+- **Performance Issues**: No benefit from caching for legitimate null values
+- **Inconsistent Behavior**: Different treatment for null vs non-null values
+
+### Solution: Null Sentinel Objects
+The system now uses an internal sentinel object to represent null values in cache:
+
+```java
+// Example: User biography is optional and can be null
+public String getUserBiography(Long userId) {
+    return cacheService.getOrLoad(
+        "user:bio:" + userId,
+        String.class,
+        () -> userRepository.findBiography(userId) // May return null
+    );
+}
+```
+
+**First call**: Database returns `null` → Sentinel stored in cache → Returns `null` to client
+**Second call**: Sentinel found in cache → Returns `null` to client (no database hit!)
+
+### Benefits
+- **Performance**: Null values are served from cache, avoiding database calls
+- **Consistency**: All values (null and non-null) follow the same caching pattern
+- **Transparency**: Clients receive actual null values, never seeing internal sentinels
+- **Serialization Safe**: Sentinel objects work properly with distributed caches
+
+### Implementation Details
+- **Internal Only**: The sentinel pattern is completely internal to the caching system
+- **Type Safe**: Proper unwrapping ensures type safety for clients
+- **Serializable**: Works correctly with Redis and other distributed cache systems
+- **Thread Safe**: Concurrent access is handled properly
 
 ## Usage Examples
 
@@ -78,11 +118,35 @@ public User getUser(Long id) {
 }
 ```
 
+### Null Value Scenarios
+```java
+// These examples now properly cache null values
+public String getUserBiography(Long userId) {
+    // If biography is null, it will be cached and served from cache on subsequent calls
+    return cacheService.getOrLoad(
+        "user:bio:" + userId,
+        String.class,
+        () -> userRepository.findBiography(userId) // May return null
+    );
+}
+
+public Optional<Address> getUserAddress(Long userId) {
+    // Optional.empty() is also properly cached
+    return cacheService.getOrLoad(
+        "user:address:" + userId,
+        new ParameterizedTypeReference<Optional<Address>>() {},
+        () -> userRepository.findUserAddress(userId) // May return Optional.empty()
+    );
+}
+```
+
 ### Invalidation
 ```java
 public void updateUser(User user) {
     userRepository.save(user);
     cacheService.invalidate("user:" + user.getId());
+    // Also invalidate related nullable fields
+    cacheService.invalidate("user:bio:" + user.getId());
 }
 ```
 
@@ -99,3 +163,4 @@ The MultiLevelCacheService is designed to be resilient:
 - Cache failures don't break the application flow
 - Errors are logged but don't propagate to callers
 - The system gracefully falls back to data source loading
+- Null value handling is transparent and error-free

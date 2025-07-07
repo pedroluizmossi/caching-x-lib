@@ -6,9 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 /**
@@ -20,6 +21,24 @@ import java.util.function.Supplier;
  */
 public class MultiLevelCacheService implements CacheService {
     private static final Logger log = LoggerFactory.getLogger(MultiLevelCacheService.class);
+
+    /**
+     * Sentinel object to represent null values in cache.
+     * This allows us to distinguish between "not found in cache" and "found in cache but value is null".
+     */
+    private static final class NullValue implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public String toString() {
+            return "NullValue";
+        }
+    }
+
+    private static final NullValue NULL_SENTINEL = new NullValue();
+    private static final ParameterizedTypeReference<Object> OBJECT_TYPE_REF = new ParameterizedTypeReference<Object>() {};
+
     private final CacheProvider l1Cache;
     private final CacheProvider l2Cache;
     private final ExecutorService executor;
@@ -49,10 +68,10 @@ public class MultiLevelCacheService implements CacheService {
         // L1 Hit
         if (l1Cache != null) {
             try {
-                T value = l1Cache.get(key, typeRef);
+                Object value = l1Cache.get(key, OBJECT_TYPE_REF);
                 if (value != null) {
                     log.debug("Cache HIT on L1 for key: {}", key);
-                    return value;
+                    return unwrapNullValue(value);
                 }
             } catch (Exception e) {
                 log.error("Error reading from L1 cache for key {}: {}", key, e.getMessage(), e);
@@ -62,11 +81,11 @@ public class MultiLevelCacheService implements CacheService {
         // L2 Hit
         if (l2Cache != null) {
             try {
-                T value = l2Cache.get(key, typeRef);
+                Object value = l2Cache.get(key, OBJECT_TYPE_REF);
                 if (value != null) {
                     log.debug("Cache HIT on L2 for key: {}", key);
                     // Asynchronously promote to L1
-                    final T valueToPromote = value;
+                    final Object valueToPromote = value;
                     if (l1Cache != null) {
                         executor.execute(() -> {
                             try {
@@ -76,7 +95,7 @@ public class MultiLevelCacheService implements CacheService {
                             }
                         });
                     }
-                    return value;
+                    return unwrapNullValue(value);
                 }
             } catch (Exception e) {
                 log.error("Error reading from L2 cache for key {}: {}", key, e.getMessage(), e);
@@ -87,9 +106,9 @@ public class MultiLevelCacheService implements CacheService {
         log.debug("Complete cache MISS for key: {}. Executing loader.", key);
         T valueFromSource = loader.get();
 
-        if (valueFromSource != null) {
-            executor.execute(() -> storeInCaches(key, valueFromSource));
-        }
+        // Store the value (or null sentinel) in caches
+        final Object valueToStore = wrapNullValue(valueFromSource);
+        executor.execute(() -> storeInCaches(key, valueToStore));
 
         return valueFromSource;
     }
@@ -134,4 +153,27 @@ public class MultiLevelCacheService implements CacheService {
             }
         }
     }
+
+    /**
+     * Wraps a null value with the sentinel object for storage in cache.
+     *
+     * @param value the value to wrap (may be null)
+     * @return the original value if not null, or the null sentinel if null
+     */
+    private Object wrapNullValue(Object value) {
+        return value != null ? value : NULL_SENTINEL;
+    }
+
+    /**
+     * Unwraps a cached value, converting the sentinel back to null.
+     *
+     * @param cachedValue the value retrieved from cache
+     * @param <T>        the expected return type
+     * @return null if the cached value is the null sentinel, otherwise the cached value cast to T
+     */
+    @SuppressWarnings("unchecked")
+    private <T> T unwrapNullValue(Object cachedValue) {
+        return cachedValue instanceof NullValue ? null : (T) cachedValue;
+    }
 }
+
