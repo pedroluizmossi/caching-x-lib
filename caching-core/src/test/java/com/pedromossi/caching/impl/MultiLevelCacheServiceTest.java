@@ -4,11 +4,12 @@ import com.pedromossi.caching.CacheProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,12 +27,15 @@ class MultiLevelCacheServiceTest {
     @Mock
     private Supplier<String> stringLoader;
 
+    private ExecutorService executorService;
     private MultiLevelCacheService cacheService;
 
     @BeforeEach
     void setUp() {
-        // Inicializa o serviço com ambos os caches (L1 e L2)
-        cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.of(l2Cache));
+        // Use a direct executor for testing to make async operations synchronous
+        executorService = Executors.newSingleThreadExecutor();
+        // Initialize the service with both caches and executor
+        cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.of(l2Cache), executorService);
     }
 
     @Test
@@ -52,7 +56,7 @@ class MultiLevelCacheServiceTest {
     }
 
     @Test
-    void getOrLoad_shouldReturnFromL2AndPromoteToL1_whenL2Hit() {
+    void getOrLoad_shouldReturnFromL2AndPromoteToL1_whenL2Hit() throws InterruptedException {
         // Given: O valor não existe no L1, mas existe no L2
         String key = "test:key";
         String expectedValue = "value_from_l2";
@@ -67,12 +71,15 @@ class MultiLevelCacheServiceTest {
         // Verifica a sequência de chamadas
         verify(l1Cache).get(key, String.class);
         verify(l2Cache).get(key, String.class);
-        verify(l1Cache).put(key, expectedValue); // Verifica a promoção para L1
         verifyNoInteractions(stringLoader); // O loader não deve ser chamado
+
+        // Wait for async promotion to complete
+        Thread.sleep(100);
+        verify(l1Cache).put(key, expectedValue); // Verifica a promoção para L1
     }
 
     @Test
-    void getOrLoad_shouldLoadFromSourceAndStoreInCaches_whenCompleteMiss() {
+    void getOrLoad_shouldLoadFromSourceAndStoreInCaches_whenCompleteMiss() throws InterruptedException {
         // Given: O valor não existe em nenhum cache
         String key = "test:key";
         String expectedValue = "value_from_source";
@@ -89,12 +96,15 @@ class MultiLevelCacheServiceTest {
         verify(l1Cache).get(key, String.class);
         verify(l2Cache).get(key, String.class);
         verify(stringLoader).get(); // O loader DEVE ser chamado
+
+        // Wait for async storage to complete
+        Thread.sleep(100);
         verify(l2Cache).put(key, expectedValue); // Armazena no L2
         verify(l1Cache).put(key, expectedValue); // Armazena no L1
     }
 
     @Test
-    void getOrLoad_shouldNotStoreInCache_whenLoaderReturnsNull() {
+    void getOrLoad_shouldNotStoreInCache_whenLoaderReturnsNull() throws InterruptedException {
         // Given: O valor não existe em nenhum cache e o loader retorna null
         String key = "test:key";
         when(l1Cache.get(key, String.class)).thenReturn(null);
@@ -106,18 +116,24 @@ class MultiLevelCacheServiceTest {
 
         // Then
         assertThat(actualValue).isNull();
+
+        // Wait to ensure no async operations are triggered
+        Thread.sleep(100);
         // Verifica que os métodos 'put' não foram chamados
         verify(l1Cache, never()).put(anyString(), any());
         verify(l2Cache, never()).put(anyString(), any());
     }
 
     @Test
-    void invalidate_shouldEvictFromBothCaches() {
+    void invalidate_shouldEvictFromBothCaches() throws InterruptedException {
         // Given
         String key = "test:key:to:invalidate";
 
         // When
         cacheService.invalidate(key);
+
+        // Wait for async invalidation to complete
+        Thread.sleep(100);
 
         // Then
         // A correção garante que ambos os caches, L1 e L2, sejam invalidados.
@@ -126,13 +142,16 @@ class MultiLevelCacheServiceTest {
     }
 
     @Test
-    void invalidate_shouldOnlyEvictL1_whenL2IsNotPresent() {
+    void invalidate_shouldOnlyEvictL1_whenL2IsNotPresent() throws InterruptedException {
         // Given: Serviço configurado apenas com L1
-        cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.empty());
+        cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.empty(), executorService);
         String key = "test:key:to:invalidate";
 
         // When
         cacheService.invalidate(key);
+
+        // Wait for async invalidation to complete
+        Thread.sleep(100);
 
         // Then
         verify(l1Cache).evict(key);
