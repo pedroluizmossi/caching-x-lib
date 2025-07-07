@@ -32,12 +32,24 @@ public class CaffeineCacheAdapter implements CacheProvider {
     @SuppressWarnings("unchecked")
     public <T> T get(String key, ParameterizedTypeReference<T> typeRef) {
         Object value = cache.getIfPresent(key);
-        // This is a simplified check. A more robust check might involve reflection
-        // but for most cases, this is sufficient.
-        if (value != null && typeRef.getType().getTypeName().equals(value.getClass().getTypeName())) {
+        if (value == null) {
+            return null;
+        }
+
+        java.lang.reflect.Type requestedType = typeRef.getType();
+        Class<?> rawClass;
+        if (requestedType instanceof Class) {
+            rawClass = (Class<?>) requestedType;
+        } else if (requestedType instanceof java.lang.reflect.ParameterizedType) {
+            rawClass = (Class<?>) ((java.lang.reflect.ParameterizedType) requestedType).getRawType();
+        } else {
+            // Unsupported type for this check, returning null for safety.
+            return null;
+        }
+
+        if (rawClass.isInstance(value)) {
             return (T) value;
         }
-        // A proper implementation would involve checking generic types more deeply
         return null;
     }
 

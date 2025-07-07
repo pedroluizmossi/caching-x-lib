@@ -14,6 +14,10 @@ public interface CacheService {
 
     /**
      * Gets an item from the cache or loads it from the source.
+     * <p>
+     * If the item is not found in any cache layer, the provided {@code loader}
+     * function will be executed to fetch the data. The result will then be
+     * stored asynchronously in the applicable cache layers.
      *
      * @param key A unique key for the item.
      * @param typeRef A reference to the type of object to be returned.
