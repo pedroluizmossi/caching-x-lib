@@ -145,7 +145,7 @@ public class CachingProperties {
         /**
          * Queue capacity.
          */
-        private int queueCapacity = 10000;
+        private int queueCapacity = 1000;
 
         // Getters and Setters
         public int getCorePoolSize() { return corePoolSize; }

@@ -150,7 +150,7 @@ caching:
   async:
     core-pool-size: 2      # Base number of threads
     max-pool-size: 50      # Maximum number of threads  
-    queue-capacity: 10000  # Task queue capacity
+    queue-capacity: 1000  # Task queue capacity
 ```
 
 ### Benefits
@@ -254,7 +254,7 @@ caching:
   enabled: true
   l1:
     enabled: true
-    spec: "maximumSize=10000,expireAfterWrite=10m"
+    spec: "maximumSize=1000,expireAfterWrite=10m"
   l2:
     enabled: true
     ttl: PT1H

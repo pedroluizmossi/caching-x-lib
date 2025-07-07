@@ -133,7 +133,7 @@ public class UserService {
 ### Application Properties
 
 | Property | Description | Default |
-|----------|-------------|---------|
+|----------|-------------|--------|
 | `caching.enabled` | Enable/disable the caching library | `true` |
 | `caching.l1.enabled` | Enable/disable L1 (Caffeine) cache | `true` |
 | `caching.l1.spec` | Caffeine cache specification | `"maximumSize=500,expireAfterWrite=10m"` |
@@ -142,7 +142,7 @@ public class UserService {
 | `caching.l2.invalidationTopic` | Redis pub/sub topic for invalidation | `"cache:invalidation"` |
 | `caching.async.core-pool-size` | Base number of threads for async operations | `2` |
 | `caching.async.max-pool-size` | Maximum number of threads for async operations | `50` |
-| `caching.async.queue-capacity` | Task queue capacity for async operations | `10000` |
+| `caching.async.queue-capacity` | Task queue capacity for async operations | `1000` |
 
 ### Caffeine Specifications
 
@@ -170,7 +170,7 @@ caching:
   async:
     core-pool-size: 2      # Base number of threads
     max-pool-size: 50      # Maximum number of threads  
-    queue-capacity: 10000  # Task queue capacity
+    queue-capacity: 1000  # Task queue capacity
 ```
 
 ### Benefits

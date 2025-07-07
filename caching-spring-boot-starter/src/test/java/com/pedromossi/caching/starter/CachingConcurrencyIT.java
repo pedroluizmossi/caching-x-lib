@@ -194,11 +194,11 @@ public class CachingConcurrencyIT extends IntegrationTest {
         AtomicInteger loaderCallCount = new AtomicInteger(0);
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
-        // Configure mock behavior to return null values
+        // Configure mock behavior to return null values (cache miss)
         for (int i = 0; i < numberOfThreads; i++) {
             String key = keyPrefix + i;
-            when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-            when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+            when(l1CacheProvider.get(eq(key), any())).thenReturn(null);
+            when(l2CacheProvider.get(eq(key), any())).thenReturn(null);
         }
 
         // When - Execute concurrent loads that return null
@@ -223,8 +223,14 @@ public class CachingConcurrencyIT extends IntegrationTest {
         assertThat(results).allMatch(result -> result == null);
         assertThat(loaderCallCount.get()).isEqualTo(numberOfThreads);
 
-        // Verify that null values are not cached
-        verify(l1CacheProvider, never()).put(anyString(), any());
-        verify(l2CacheProvider, never()).put(anyString(), any());
+        // Wait for async operations to complete
+        await().atMost(1, TimeUnit.SECONDS).untilAsserted(() -> {
+            // Verify that null values are cached using the sentinel object for each key
+            for (int i = 0; i < numberOfThreads; i++) {
+                String key = keyPrefix + i;
+                verify(l1CacheProvider, atLeastOnce()).put(eq(key), any());
+                verify(l2CacheProvider, atLeastOnce()).put(eq(key), any());
+            }
+        });
     }
 }

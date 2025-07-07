@@ -210,15 +210,15 @@ public class CachingDataTypesIT extends IntegrationTest {
     }
 
     @Test
-    void shouldNotCacheNullValues() {
+    void shouldCacheNullValues() {
         // Given
         String key = "null-value-key";
         Supplier<String> loader = () -> null;
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
-        // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        // Configure mock behavior to simulate cache miss
+        when(l1CacheProvider.get(eq(key), any())).thenReturn(null);
+        when(l2CacheProvider.get(eq(key), any())).thenReturn(null);
 
         // When
         String result = cacheService.getOrLoad(key, typeRef, loader);
@@ -226,16 +226,12 @@ public class CachingDataTypesIT extends IntegrationTest {
         // Then
         assertThat(result).isNull();
 
-        // Wait a bit to ensure no async operations are triggered
-        try {
-            Thread.sleep(200);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        // Verify that null values are not cached
-        verify(l1CacheProvider, never()).put(anyString(), any());
-        verify(l2CacheProvider, never()).put(anyString(), any());
+        // Wait for async operations to complete
+        await().atMost(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
+            // Verify that null values are cached using the sentinel object
+            verify(l1CacheProvider, atLeastOnce()).put(eq(key), any());
+            verify(l2CacheProvider, atLeastOnce()).put(eq(key), any());
+        });
     }
 
     @Test
