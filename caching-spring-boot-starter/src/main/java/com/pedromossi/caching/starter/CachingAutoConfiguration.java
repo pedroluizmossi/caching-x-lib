@@ -27,10 +27,13 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.lang.Nullable;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Spring Boot auto-configuration class for the caching library.
@@ -120,12 +123,35 @@ public class CachingAutoConfiguration {
         }
     }
 
+    /**
+     * Creates a dedicated thread pool for asynchronous cache operations.
+     * This allows isolating cache I/O from the main application threads.
+     * Users can override this bean to provide a custom executor.
+     *
+     * @param properties Configuration properties.
+     * @return A configured Executor for caching tasks.
+     */
+    @Bean("cachingTaskExecutor")
+    @ConditionalOnMissingBean(name = "cachingTaskExecutor")
+    public Executor cachingTaskExecutor(CachingProperties properties) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        CachingProperties.AsyncProperties async = properties.getAsync();
+        executor.setCorePoolSize(async.getCorePoolSize());
+        executor.setMaxPoolSize(async.getMaxPoolSize());
+        executor.setQueueCapacity(async.getQueueCapacity());
+        executor.setThreadNamePrefix("cache-async-");
+        executor.initialize();
+        return executor;
+    }
+
+
     @Bean
     public CacheService cacheService(
-            @Qualifier("l1CacheProvider") Optional<CacheProvider> l1CacheProvider,
-            @Qualifier("l2CacheProvider") Optional<CacheProvider> l2CacheProvider
+            Optional<CacheProvider> l1CacheProvider,
+            Optional<CacheProvider> l2CacheProvider,
+            @Qualifier("cachingTaskExecutor") Executor executor
     ) {
-        return new MultiLevelCacheService(l1CacheProvider, l2CacheProvider);
+        return new MultiLevelCacheService(l1CacheProvider, l2CacheProvider, (ExecutorService) executor);
     }
 
     /**

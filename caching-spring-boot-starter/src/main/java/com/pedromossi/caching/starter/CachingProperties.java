@@ -19,6 +19,8 @@ public class CachingProperties {
 
     private L1CacheProperties l1 = new L1CacheProperties();
     private L2CacheProperties l2 = new L2CacheProperties();
+    private AsyncProperties async = new AsyncProperties();
+
 
     // Getters and Setters
     public boolean isEnabled() {
@@ -43,6 +45,14 @@ public class CachingProperties {
 
     public void setL2(L2CacheProperties l2) {
         this.l2 = l2;
+    }
+
+    public AsyncProperties getAsync() {
+        return async;
+    }
+
+    public void setAsync(AsyncProperties async) {
+        this.async = async;
     }
 
     /**
@@ -118,5 +128,31 @@ public class CachingProperties {
         public void setTtl(Duration ttl) {
             this.ttl = ttl;
         }
+    }
+
+    /**
+     * Configuration for the asynchronous task executor.
+     */
+    public static class AsyncProperties {
+        /**
+         * Core number of threads.
+         */
+        private int corePoolSize = 2;
+        /**
+         * Maximum allowed number of threads.
+         */
+        private int maxPoolSize = 50;
+        /**
+         * Queue capacity.
+         */
+        private int queueCapacity = 10000;
+
+        // Getters and Setters
+        public int getCorePoolSize() { return corePoolSize; }
+        public void setCorePoolSize(int corePoolSize) { this.corePoolSize = corePoolSize; }
+        public int getMaxPoolSize() { return maxPoolSize; }
+        public void setMaxPoolSize(int maxPoolSize) { this.maxPoolSize = maxPoolSize; }
+        public int getQueueCapacity() { return queueCapacity; }
+        public void setQueueCapacity(int queueCapacity) { this.queueCapacity = queueCapacity; }
     }
 }

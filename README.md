@@ -117,6 +117,9 @@ public class UserService {
 | `caching.l2.enabled` | Enable/disable L2 (Redis) cache | `true` |
 | `caching.l2.ttl` | Redis cache TTL | `PT1H` (1 hour) |
 | `caching.l2.invalidationTopic` | Redis pub/sub topic for invalidation | `"cache:invalidation"` |
+| `caching.async.core-pool-size` | Base number of threads for async operations | `2` |
+| `caching.async.max-pool-size` | Maximum number of threads for async operations | `50` |
+| `caching.async.queue-capacity` | Task queue capacity for async operations | `10000` |
 
 ### Caffeine Specifications
 
@@ -130,6 +133,38 @@ caching:
     spec: "maximumSize=500,expireAfterWrite=10m"       # Combined
     spec: "expireAfterAccess=30s,recordStats"          # Access-based + stats
 ```
+
+## Asynchronous Operations
+
+To improve performance and reduce latency, write operations (`put`) and invalidation operations (`evict`) are executed asynchronously using a dedicated thread pool. This means your application doesn't need to wait for Redis communication to complete before continuing processing.
+
+### Configuring the Thread Pool
+
+You can customize the `ExecutorService` used for asynchronous operations through the following properties in your `application.yml`:
+
+```yaml
+caching:
+  async:
+    core-pool-size: 2      # Base number of threads
+    max-pool-size: 50      # Maximum number of threads  
+    queue-capacity: 10000  # Task queue capacity
+```
+
+### Benefits
+
+- **Reduced Latency**: Cache operations don't block your main application flow
+- **Better Throughput**: Multiple cache operations can be processed concurrently
+- **Resilience**: Application continues working even if Redis operations are slow
+- **Resource Management**: Configurable thread pool prevents resource exhaustion
+
+### Thread Pool Configuration
+
+The default configuration provides:
+- **Core Pool Size**: 2 threads always available
+- **Max Pool Size**: Up to 50 threads during peak load
+- **Queue Capacity**: 10,000 pending operations can be queued
+
+Adjust these values based on your application's cache usage patterns and system resources.
 
 ## Cache Behavior
 

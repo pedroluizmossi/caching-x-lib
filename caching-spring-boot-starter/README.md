@@ -137,6 +137,38 @@ public static class InvalidationHandler {
 }
 ```
 
+## Asynchronous Operations
+
+To improve performance and reduce latency, write operations (`put`) and invalidation operations (`evict`) are executed asynchronously using a dedicated thread pool. This means your application doesn't need to wait for Redis communication to complete before continuing processing.
+
+### Configuring the Thread Pool
+
+You can customize the `ExecutorService` used for asynchronous operations through the following properties in your `application.yml`:
+
+```yaml
+caching:
+  async:
+    core-pool-size: 2      # Base number of threads
+    max-pool-size: 50      # Maximum number of threads  
+    queue-capacity: 10000  # Task queue capacity
+```
+
+### Benefits
+
+- **Reduced Latency**: Cache operations don't block your main application flow
+- **Better Throughput**: Multiple cache operations can be processed concurrently
+- **Resilience**: Application continues working even if Redis operations are slow
+- **Resource Management**: Configurable thread pool prevents resource exhaustion
+
+### Thread Pool Configuration
+
+The default configuration provides:
+- **Core Pool Size**: 2 threads always available
+- **Max Pool Size**: Up to 50 threads during peak load
+- **Queue Capacity**: 10,000 pending operations can be queued
+
+Adjust these values based on your application's cache usage patterns and system resources.
+
 ## Usage
 
 ### 1. Add Dependency
