@@ -1,5 +1,7 @@
 package com.pedromossi.caching;
 
+import org.springframework.core.ParameterizedTypeReference;
+
 /**
  * Core interface for cache providers.
  * Defines the basic operations that any cache implementation must support.
@@ -12,11 +14,11 @@ public interface CacheProvider {
      * Retrieves a value from the cache.
      *
      * @param key The cache key.
-     * @param type The expected type of the value (for deserialization).
+     * @param typeRef A reference to the expected type of the value.
      * @param <T> The type of the cached value.
      * @return The found value or null if it doesn't exist.
      */
-    <T> T get(String key, Class<T> type);
+    <T> T get(String key, ParameterizedTypeReference<T> typeRef);
 
     /**
      * Inserts or updates a value in the cache.

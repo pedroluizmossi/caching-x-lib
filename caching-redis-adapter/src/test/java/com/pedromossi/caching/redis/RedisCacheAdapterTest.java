@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -39,14 +40,46 @@ class RedisCacheAdapterTest {
         // Given
         String key = "product:1";
         String expectedValue = "Notebook";
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
         when(valueOperations.get(key)).thenReturn(expectedValue);
 
         // When
-        String actualValue = redisCacheAdapter.get(key, String.class);
+        String actualValue = redisCacheAdapter.get(key, typeRef);
 
         // Then
         assertThat(actualValue).isEqualTo(expectedValue);
         verify(valueOperations).get(key); // Verifica se o método get foi chamado
+    }
+
+    @Test
+    void shouldReturnNullForNonExistentKey() {
+        // Given
+        String key = "non-existent-key";
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+        when(valueOperations.get(key)).thenReturn(null);
+
+        // When
+        String actualValue = redisCacheAdapter.get(key, typeRef);
+
+        // Then
+        assertThat(actualValue).isNull();
+        verify(valueOperations).get(key);
+    }
+
+    @Test
+    void shouldHandleIntegerValues() {
+        // Given
+        String key = "count:1";
+        Integer expectedValue = 42;
+        ParameterizedTypeReference<Integer> typeRef = new ParameterizedTypeReference<Integer>() {};
+        when(valueOperations.get(key)).thenReturn(expectedValue);
+
+        // When
+        Integer actualValue = redisCacheAdapter.get(key, typeRef);
+
+        // Then
+        assertThat(actualValue).isEqualTo(expectedValue);
+        verify(valueOperations).get(key);
     }
 
     @Test
@@ -82,15 +115,46 @@ class RedisCacheAdapterTest {
     void getShouldReturnNullAndLogWhenRedisFails() {
         // Given
         String key = "product:4";
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
         // Simula uma exceção sendo lançada pelo Redis
         when(valueOperations.get(key)).thenThrow(new RuntimeException("Redis connection failed"));
 
         // When
-        String value = redisCacheAdapter.get(key, String.class);
+        String value = redisCacheAdapter.get(key, typeRef);
 
         // Then
         assertThat(value).isNull();
+        verify(valueOperations).get(key);
         // Em um cenário real, você poderia também verificar se o log de erro foi chamado
         // usando uma appender de teste de log.
+    }
+
+    @Test
+    void putShouldHandleExceptionsGracefully() {
+        // Given
+        String key = "error-key";
+        String value = "error-value";
+        doThrow(new RuntimeException("Redis write failed")).when(valueOperations).set(key, value, ttl);
+
+        // When & Then - Should not throw exception
+        redisCacheAdapter.put(key, value);
+
+        // Verify the operation was attempted
+        verify(valueOperations).set(key, value, ttl);
+    }
+
+    @Test
+    void evictShouldHandleExceptionsGracefully() {
+        // Given
+        String key = "error-evict-key";
+        doThrow(new RuntimeException("Redis delete failed")).when(redisTemplate).delete(key);
+
+        // When & Then - Should not throw exception
+        redisCacheAdapter.evict(key);
+
+        // Verify the operations were attempted
+        verify(redisTemplate).delete(key);
+        // convertAndSend should still be called even if delete fails
+        verify(redisTemplate).convertAndSend(invalidationTopic, key);
     }
 }

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -43,15 +44,17 @@ class MultiLevelCacheServiceTest {
         // Given: O valor existe no L1
         String key = "test:key";
         String expectedValue = "value_from_l1";
-        when(l1Cache.get(key, String.class)).thenReturn(expectedValue);
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+
+        when(l1Cache.get(eq(key), eq(typeRef))).thenReturn(expectedValue);
 
         // When
-        String actualValue = cacheService.getOrLoad(key, String.class, stringLoader);
+        String actualValue = cacheService.getOrLoad(key, typeRef, stringLoader);
 
         // Then
         assertThat(actualValue).isEqualTo(expectedValue);
         // Verifica que apenas o L1 foi consultado
-        verify(l1Cache).get(key, String.class);
+        verify(l1Cache).get(eq(key), eq(typeRef));
         verifyNoInteractions(l2Cache, stringLoader); // L2 e o loader não devem ser chamados
     }
 
@@ -60,17 +63,19 @@ class MultiLevelCacheServiceTest {
         // Given: O valor não existe no L1, mas existe no L2
         String key = "test:key";
         String expectedValue = "value_from_l2";
-        when(l1Cache.get(key, String.class)).thenReturn(null);
-        when(l2Cache.get(key, String.class)).thenReturn(expectedValue);
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+
+        when(l1Cache.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l2Cache.get(eq(key), eq(typeRef))).thenReturn(expectedValue);
 
         // When
-        String actualValue = cacheService.getOrLoad(key, String.class, stringLoader);
+        String actualValue = cacheService.getOrLoad(key, typeRef, stringLoader);
 
         // Then
         assertThat(actualValue).isEqualTo(expectedValue);
         // Verifica a sequência de chamadas
-        verify(l1Cache).get(key, String.class);
-        verify(l2Cache).get(key, String.class);
+        verify(l1Cache).get(eq(key), eq(typeRef));
+        verify(l2Cache).get(eq(key), eq(typeRef));
         verifyNoInteractions(stringLoader); // O loader não deve ser chamado
 
         // Wait for async promotion to complete
@@ -83,18 +88,20 @@ class MultiLevelCacheServiceTest {
         // Given: O valor não existe em nenhum cache
         String key = "test:key";
         String expectedValue = "value_from_source";
-        when(l1Cache.get(key, String.class)).thenReturn(null);
-        when(l2Cache.get(key, String.class)).thenReturn(null);
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+
+        when(l1Cache.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l2Cache.get(eq(key), eq(typeRef))).thenReturn(null);
         when(stringLoader.get()).thenReturn(expectedValue);
 
         // When
-        String actualValue = cacheService.getOrLoad(key, String.class, stringLoader);
+        String actualValue = cacheService.getOrLoad(key, typeRef, stringLoader);
 
         // Then
         assertThat(actualValue).isEqualTo(expectedValue);
         // Verifica a sequência
-        verify(l1Cache).get(key, String.class);
-        verify(l2Cache).get(key, String.class);
+        verify(l1Cache).get(eq(key), eq(typeRef));
+        verify(l2Cache).get(eq(key), eq(typeRef));
         verify(stringLoader).get(); // O loader DEVE ser chamado
 
         // Wait for async storage to complete
@@ -107,12 +114,14 @@ class MultiLevelCacheServiceTest {
     void getOrLoad_shouldNotStoreInCache_whenLoaderReturnsNull() throws InterruptedException {
         // Given: O valor não existe em nenhum cache e o loader retorna null
         String key = "test:key";
-        when(l1Cache.get(key, String.class)).thenReturn(null);
-        when(l2Cache.get(key, String.class)).thenReturn(null);
+        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+
+        when(l1Cache.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l2Cache.get(eq(key), eq(typeRef))).thenReturn(null);
         when(stringLoader.get()).thenReturn(null);
 
         // When
-        String actualValue = cacheService.getOrLoad(key, String.class, stringLoader);
+        String actualValue = cacheService.getOrLoad(key, typeRef, stringLoader);
 
         // Then
         assertThat(actualValue).isNull();

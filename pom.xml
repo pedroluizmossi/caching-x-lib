@@ -18,14 +18,18 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-boot.version>3.1.5</spring-boot.version>
-        <caffeine.version>3.2.1</caffeine.version>
-        <slf4j.version>2.0.17</slf4j.version>
-        <jackson.version>2.15.2</jackson.version>
-        <junit.version>5.10.2</junit.version>
-        <mockito.version>5.3.1</mockito.version>
-        <assertj.version>3.24.2</assertj.version>
+        <spring-boot.version>3.4.1</spring-boot.version>
+        <caffeine.version>3.1.8</caffeine.version>
+        <slf4j.version>2.0.16</slf4j.version>
+        <jackson.version>2.18.2</jackson.version>
+        <junit.version>5.11.4</junit.version>
+        <mockito.version>5.14.2</mockito.version>
+        <assertj.version>3.26.3</assertj.version>
+        <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+        <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+        <testcontainers.version>1.20.4</testcontainers.version>
     </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -41,7 +45,6 @@
         <module>caching-spring-boot-starter</module>
     </modules>
 
-
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -52,6 +55,7 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- Internal modules -->
             <dependency>
                 <groupId>com.pedromossi</groupId>
                 <artifactId>caching-core</artifactId>
@@ -72,6 +76,8 @@
                 <artifactId>caching-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
+
+            <!-- External dependencies -->
             <dependency>
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
@@ -86,6 +92,14 @@
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-databind</artifactId>
                 <version>${jackson.version}</version>
+            </dependency>
+
+            <!-- Test dependencies -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
@@ -117,6 +131,15 @@
                 <version>${assertj.version}</version>
                 <scope>test</scope>
             </dependency>
+
+            <!-- Testcontainers dependencies -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -126,12 +149,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.2.5</version>
+                    <version>${maven-surefire-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.12</version>
+                    <version>${jacoco-maven-plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>

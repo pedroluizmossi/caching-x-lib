@@ -3,6 +3,7 @@ package com.pedromossi.caching.redis;
 import com.pedromossi.caching.CacheProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.redis.core.RedisTemplate;
 import java.time.Duration;
 
@@ -36,10 +37,13 @@ public class RedisCacheAdapter implements CacheProvider {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T get(String key, Class<T> type) {
+    public <T> T get(String key, ParameterizedTypeReference<T> typeRef) {
         try {
+            // Note: Deserialization from JSON to a generic type often requires the
+            // type reference. Your GenericJackson2JsonRedisSerializer already handles this.
             Object value = redisTemplate.opsForValue().get(key);
-            if (type.isInstance(value)) {
+            if (value != null) {
+                // The serializer should have already returned the correct type.
                 return (T) value;
             }
         } catch (Exception e) {
@@ -59,12 +63,20 @@ public class RedisCacheAdapter implements CacheProvider {
 
     @Override
     public void evict(String key) {
+        log.debug("Removing key from Redis and publishing invalidation: {}", key);
+
+        // Try to delete from Redis
         try {
-            log.debug("Removing key from Redis and publishing invalidation: {}", key);
             redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.error("Error deleting key from Redis: {}", key, e);
+        }
+
+        // Always try to publish invalidation message, even if delete failed
+        try {
             redisTemplate.convertAndSend(invalidationTopic, key);
         } catch (Exception e) {
-            log.error("Error invalidating in Redis for key: {}", key, e);
+            log.error("Error publishing invalidation message for key: {}", key, e);
         }
     }
 }

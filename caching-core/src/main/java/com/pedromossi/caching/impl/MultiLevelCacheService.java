@@ -4,6 +4,7 @@ import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -39,30 +40,41 @@ public class MultiLevelCacheService implements CacheService {
     }
 
     @Override
-    public <T> T getOrLoad(String key, Class<T> type, Supplier<T> loader) {
-        // L1 Hit (fastest path)
+    public <T> T getOrLoad(String key, ParameterizedTypeReference<T> typeRef, Supplier<T> loader) {
+        // L1 Hit
         if (l1Cache != null) {
-            T value = l1Cache.get(key, type);
-            if (value != null) {
-                log.debug("Cache HIT on L1 for key: {}", key);
-                return value;
+            try {
+                T value = l1Cache.get(key, typeRef);
+                if (value != null) {
+                    log.debug("Cache HIT on L1 for key: {}", key);
+                    return value;
+                }
+            } catch (Exception e) {
+                log.error("Error reading from L1 cache for key {}: {}", key, e.getMessage(), e);
             }
         }
 
         // L2 Hit
         if (l2Cache != null) {
-            T value = l2Cache.get(key, type);
-            if (value != null) {
-                log.debug("Cache HIT on L2 for key: {}", key);
-                // Asynchronously promote to L1
-                final T valueToPromote = value;
-                if (l1Cache != null) {
-                    executor.execute(() -> {
-                        log.debug("Promoting key from L2 to L1: {}", key);
-                        l1Cache.put(key, valueToPromote);
-                    });
+            try {
+                T value = l2Cache.get(key, typeRef);
+                if (value != null) {
+                    log.debug("Cache HIT on L2 for key: {}", key);
+                    // Asynchronously promote to L1
+                    final T valueToPromote = value;
+                    if (l1Cache != null) {
+                        executor.execute(() -> {
+                            try {
+                                l1Cache.put(key, valueToPromote);
+                            } catch (Exception ex) {
+                                log.error("Error promoting value to L1 for key {}: {}", key, ex.getMessage(), ex);
+                            }
+                        });
+                    }
+                    return value;
                 }
-                return value;
+            } catch (Exception e) {
+                log.error("Error reading from L2 cache for key {}: {}", key, e.getMessage(), e);
             }
         }
 
@@ -70,7 +82,6 @@ public class MultiLevelCacheService implements CacheService {
         log.debug("Complete cache MISS for key: {}. Executing loader.", key);
         T valueFromSource = loader.get();
 
-        // Asynchronously store in L1 and L2 caches
         if (valueFromSource != null) {
             executor.execute(() -> storeInCaches(key, valueFromSource));
         }

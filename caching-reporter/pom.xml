@@ -3,6 +3,7 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>com.pedromossi</groupId>
         <artifactId>caching-x</artifactId>
@@ -18,22 +19,18 @@
         <dependency>
             <groupId>com.pedromossi</groupId>
             <artifactId>caching-core</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.pedromossi</groupId>
             <artifactId>caching-caffeine-adapter</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.pedromossi</groupId>
             <artifactId>caching-redis-adapter</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.pedromossi</groupId>
             <artifactId>caching-spring-boot-starter</artifactId>
-            <version>${project.version}</version>
         </dependency>
     </dependencies>
 
@@ -49,9 +46,6 @@
                         <goals>
                             <goal>report-aggregate</goal>
                         </goals>
-                        <configuration>
-                            <title>Caching-X Coverage</title>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>

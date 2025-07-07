@@ -1,5 +1,7 @@
 package com.pedromossi.caching;
 
+import org.springframework.core.ParameterizedTypeReference;
+
 import java.util.function.Supplier;
 
 /**
@@ -11,18 +13,15 @@ import java.util.function.Supplier;
 public interface CacheService {
 
     /**
-     * Gets an item from the cache. If the item is not found in any layer,
-     * the provided 'loader' function will be executed to fetch the data from the source of truth.
-     * The result will then be stored asynchronously in the applicable cache layers.
+     * Gets an item from the cache or loads it from the source.
      *
-     * @param key A unique key for the item in the cache.
-     * @param type The type of object to be returned (required for deserialization).
-     * @param loader A function (Supplier) that knows how to fetch the original data.
-     *               Will only be called in case of a complete cache miss.
+     * @param key A unique key for the item.
+     * @param typeRef A reference to the type of object to be returned.
+     * @param loader A function to fetch the data on a cache miss.
      * @param <T> The type of the cached value.
-     * @return The object, either from cache or freshly fetched from the source of truth.
+     * @return The object from the cache or the source.
      */
-    <T> T getOrLoad(String key, Class<T> type, Supplier<T> loader);
+    <T> T getOrLoad(String key, ParameterizedTypeReference<T> typeRef, Supplier<T> loader);
 
     /**
      * Invalidates a cache key in all layers.
