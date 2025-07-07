@@ -28,13 +28,21 @@ The main service interface that provides the high-level caching API with read-th
 ```java
 public interface CacheService {
     <T> T getOrLoad(String key, Class<T> type, Supplier<T> loader);
+    <T> T getOrLoad(String key, ParameterizedTypeReference<T> typeRef, Supplier<T> loader);
     void invalidate(String key);
 }
 ```
 
 **Methods:**
-- `getOrLoad(key, type, loader)`: Gets data from cache or loads from source
+- `getOrLoad(key, type, loader)`: Gets data from cache or loads from source using simple Class type
+- `getOrLoad(key, typeRef, loader)`: Gets data from cache or loads from source using ParameterizedTypeReference for generic types
 - `invalidate(key)`: Invalidates a key across all cache levels
+
+**Type Support:**
+- **Class<T>**: Use for simple, non-generic types (String.class, User.class, Integer.class)
+- **ParameterizedTypeReference<T>**: Use for generic types (List<User>, Map<String, Object>, etc.)
+
+The `ParameterizedTypeReference<T>` is essential for generic types due to Java's type erasure, ensuring proper serialization/deserialization in distributed cache scenarios.
 
 ### Implementations
 

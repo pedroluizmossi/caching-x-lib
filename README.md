@@ -50,6 +50,7 @@ Caching-X is designed to provide high-performance caching solutions for Java app
 2. **caching-caffeine-adapter**: Caffeine (L1) cache adapter
 3. **caching-redis-adapter**: Redis (L2) cache adapter  
 4. **caching-spring-boot-starter**: Spring Boot auto-configuration
+5. **caching-reporter**: Aggregated test coverage reports (Jacoco)
 
 ## Quick Start
 
@@ -89,11 +90,32 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
     
+    // Simple class type
     public User getUser(Long userId) {
         return cacheService.getOrLoad(
             "user:" + userId,
             User.class,
             () -> userRepository.findById(userId).orElse(null)
+        );
+    }
+    
+    // Generic collections using ParameterizedTypeReference
+    public List<User> getUsersByRole(String role) {
+        return cacheService.getOrLoad(
+            "users:role:" + role,
+            new ParameterizedTypeReference<List<User>>() {},
+            () -> userRepository.findByRole(role)
+        );
+    }
+    
+    // Complex generic types
+    public Map<String, List<User>> getUsersGroupedByDepartment() {
+        return cacheService.getOrLoad(
+            "users:grouped:department",
+            new ParameterizedTypeReference<Map<String, List<User>>>() {},
+            () -> userRepository.findAll()
+                    .stream()
+                    .collect(Collectors.groupingBy(User::getDepartment))
         );
     }
     
@@ -222,3 +244,59 @@ This will show:
 ## License
 
 This project is licensed under the MIT License.
+
+## Type Safety and Generic Support
+
+The CacheService provides two methods for type-safe caching to handle different scenarios:
+
+### Simple Types with Class<T>
+
+For simple, non-generic types, use the `Class<T>` parameter:
+
+```java
+// Basic types
+String name = cacheService.getOrLoad("user:name", String.class, () -> getName());
+Integer count = cacheService.getOrLoad("user:count", Integer.class, () -> getCount());
+User user = cacheService.getOrLoad("user:123", User.class, () -> loadUser(123));
+```
+
+### Generic Types with ParameterizedTypeReference<T>
+
+For generic collections and complex types, use `ParameterizedTypeReference<T>`:
+
+```java
+// Collections
+List<String> names = cacheService.getOrLoad(
+    "user:names", 
+    new ParameterizedTypeReference<List<String>>() {},
+    () -> loadNames()
+);
+
+// Maps
+Map<String, User> userMap = cacheService.getOrLoad(
+    "users:map",
+    new ParameterizedTypeReference<Map<String, User>>() {},
+    () -> loadUserMap()
+);
+
+// Nested generics
+List<Map<String, Object>> data = cacheService.getOrLoad(
+    "complex:data",
+    new ParameterizedTypeReference<List<Map<String, Object>>>() {},
+    () -> loadComplexData()
+);
+```
+
+### When to Use Each Approach
+
+| Use Case | Method | Example |
+|----------|--------|---------|
+| Simple classes | `Class<T>` | `User.class`, `String.class` |
+| Generic collections | `ParameterizedTypeReference<T>` | `List<User>`, `Set<String>` |
+| Maps | `ParameterizedTypeReference<T>` | `Map<String, User>` |
+| Nested generics | `ParameterizedTypeReference<T>` | `List<Map<String, Object>>` |
+| Custom generic classes | `ParameterizedTypeReference<T>` | `Response<List<User>>` |
+
+### Type Erasure Considerations
+
+Due to Java's type erasure, generic type information is lost at runtime for `Class<T>`. This is why `ParameterizedTypeReference<T>` is required for generic types - it preserves the full type information needed for proper serialization/deserialization in Redis cache.

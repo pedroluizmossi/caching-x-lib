@@ -40,6 +40,11 @@ public class MultiLevelCacheService implements CacheService {
     }
 
     @Override
+    public <T> T getOrLoad(String key, Class<T> type, Supplier<T> loader) {
+        return getOrLoad(key, ParameterizedTypeReference.forType(type), loader);
+    }
+
+    @Override
     public <T> T getOrLoad(String key, ParameterizedTypeReference<T> typeRef, Supplier<T> loader) {
         // L1 Hit
         if (l1Cache != null) {
