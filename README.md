@@ -13,13 +13,13 @@ Managing multiple cache layers can be complex. Caching-X abstracts away the boil
 
 ## Key Features
 
-- **🚀 Multi-Level Caching**: Combines a lightning-fast L1 cache (Caffeine) with a distributed L2 cache (Redis).
-- **🧠 Intelligent Cache Promotion**: Automatically promotes L2 cache hits to L1, ensuring frequently accessed data is served at maximum speed.
-- **🔄 Distributed Invalidation**: Keeps data consistent across all application instances with Redis Pub/Sub.
-- **🛡️ Full Type Safety**: Generic-aware API using `ParameterizedTypeReference` to prevent `ClassCastException`.
-- **✍️ Null Value Caching**: Prevents cache stampedes by safely caching `null` results from your data source.
-- **⚡ Asynchronous Operations**: All cache writes and invalidations are non-blocking, keeping your application responsive.
-- **💪 Error Resilience**: Gracefully handles cache layer failures without crashing your application.
+- **Multi-Level Caching**: Combines a lightning-fast L1 cache (Caffeine) with a distributed L2 cache (Redis).
+- **Intelligent Cache Promotion**: Automatically promotes L2 cache hits to L1, ensuring frequently accessed data is served at maximum speed.
+- **Distributed Invalidation**: Keeps data consistent across all application instances with Redis Pub/Sub.
+- **Full Type Safety**: Generic-aware API using `ParameterizedTypeReference` to prevent `ClassCastException`.
+- **Null Value Caching**: Prevents cache stampedes by safely caching `null` results from your data source.
+- **Asynchronous Operations**: All cache writes and invalidations are non-blocking, keeping your application responsive.
+- **Error Resilience**: Gracefully handles cache layer failures without crashing your application.
 
 ## Architecture
 
