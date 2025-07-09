@@ -1,8 +1,5 @@
 # Caching-X: High-Performance Multi-Level Caching for Java
 
-[![Maven Central](https://img.shields.io/maven-central/v/com.pedromossi/caching-spring-boot-starter.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:com.pedromossi%20AND%20a:caching-spring-boot-starter)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 **Caching-X** is a powerful, type-safe, and resilient multi-level caching library for modern Java applications. It simplifies the complexity of managing local (L1) and distributed (L2) caches, providing a seamless and high-performance solution out of the box.
 
 ## Why Caching-X?
@@ -163,7 +160,3 @@ Contributions are welcome! If you'd like to help, please feel free to:
 - Open an issue to report a bug or suggest a feature.
 - Fork the repository and submit a pull request.
 - Improve the documentation.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
