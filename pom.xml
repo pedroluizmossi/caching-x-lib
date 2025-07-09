@@ -6,12 +6,20 @@
 
     <groupId>com.pedromossi</groupId>
     <artifactId>caching-x</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Caching X Library :: Parent</name>
     <description>
         A library that provides caching capabilities with adapters for Caffeine and Redis using read-through strategies.
     </description>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/pedroluizmossi/caching-x-lib</url>
+        </repository>
+    </distributionManagement>
 
     <properties>
         <java.version>21</java.version>
