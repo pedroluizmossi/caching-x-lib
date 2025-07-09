@@ -12,6 +12,7 @@ import java.time.Duration;
  * Provides distributed caching capabilities with automatic invalidation across application instances.
  *
  * @since 1.0.0
+ * @see CacheProvider
  */
 public class RedisCacheAdapter implements CacheProvider {
 

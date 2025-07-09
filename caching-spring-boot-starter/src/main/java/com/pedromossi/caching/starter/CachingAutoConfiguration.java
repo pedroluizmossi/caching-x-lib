@@ -57,29 +57,31 @@ public class CachingAutoConfiguration {
 
         /**
          * Creates a RedisTemplate configured for caching with secure JSON serialization.
-         * <p>
-         * This template uses a copy of the application's primary ObjectMapper with secure
-         * serialization settings. Default typing is disabled to prevent deserialization
-         * vulnerabilities. Objects are serialized/deserialized based on their declared
-         * types using ParameterizedTypeReference in the cache service methods.
-         * <p>
-         * <strong>ObjectMapper Module Inheritance:</strong>
-         * The {@code objectMapper.copy()} method preserves all registered modules from the
-         * primary ObjectMapper, including JavaTimeModule, custom serializers, and deserializers.
-         * This ensures consistent serialization behavior between your application and cache.
-         * <p>
-         * <strong>When to provide a custom RedisTemplate:</strong>
+         *
+         * <p>This template uses a copy of the application's primary ObjectMapper to ensure
+         * consistent serialization behavior. The {@code objectMapper.copy()} method preserves
+         * all registered modules from the primary ObjectMapper, including:</p>
          * <ul>
-         *   <li>Advanced Jackson configuration (custom MixIns, PropertyNamingStrategies)</li>
+         *   <li>JavaTimeModule for date/time serialization</li>
+         *   <li>Custom serializers and deserializers</li>
+         *   <li>Property naming strategies</li>
+         *   <li>Feature configurations</li>
+         * </ul>
+         *
+         * <p><strong>Security Note:</strong> Default typing is intentionally disabled to prevent
+         * deserialization vulnerabilities. Objects are serialized/deserialized based on their
+         * declared types using the ParameterizedTypeReference provided in cache service methods.</p>
+         *
+         * <p><strong>When to provide a custom RedisTemplate:</strong></p>
+         * <ul>
+         *   <li>Custom MixIns that require specific configuration</li>
          *   <li>Alternative serialization formats (Protobuf, Avro, etc.)</li>
          *   <li>Custom Redis key/value serialization strategies</li>
          *   <li>Integration with external systems requiring specific JSON format</li>
+         *   <li>Advanced Jackson configuration not covered by module inheritance</li>
          * </ul>
-         * <p>
-         * To use a custom serialization strategy, define your own bean with the name
-         * "cacheRedisTemplate" and it will take precedence over this auto-configured bean.
-         * <p>
-         * Example of custom RedisTemplate:
+         *
+         * <p>To override this configuration, define your own bean with the name "cacheRedisTemplate":</p>
          * <pre>{@code
          * @Bean
          * public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
@@ -91,8 +93,8 @@ public class CachingAutoConfiguration {
          * }</pre>
          *
          * @param connectionFactory the Redis connection factory
-         * @param objectMapper the primary ObjectMapper bean (modules will be copied)
-         * @return a configured RedisTemplate for caching
+         * @param objectMapper the primary ObjectMapper bean (all modules will be copied)
+         * @return a configured RedisTemplate for caching with secure JSON serialization
          */
         @Bean
         @ConditionalOnMissingBean(name = "cacheRedisTemplate")
@@ -196,6 +198,7 @@ public class CachingAutoConfiguration {
 
         /**
          * Method called by MessageListenerAdapter when a message arrives on the topic.
+         * This method is invoked via reflection by Spring's MessageListenerAdapter.
          *
          * @param message The cache key to be invalidated.
          */
