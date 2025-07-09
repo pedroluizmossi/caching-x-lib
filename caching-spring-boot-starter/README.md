@@ -340,6 +340,46 @@ caching:
 
 Access via JMX or custom endpoints.
 
+## Monitoring with Micrometer
+
+If you are using Spring Boot Actuator, metrics for the L1 cache (Caffeine) can be exposed automatically.
+
+### 1. Add the Actuator dependency
+
+Make sure `spring-boot-starter-actuator` is in your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+### 2. Enable Caffeine Statistics
+
+For metrics to be collected, you must include `recordStats` in the L1 cache specification in your `application.yml`:
+
+```yaml
+caching:
+  l1:
+    enabled: true
+    spec: "maximumSize=1000,expireAfterWrite=10m,recordStats" # Add recordStats here
+```
+
+### 3. Expose the Metrics Endpoint
+
+Expose the `/actuator/metrics` endpoint in your `application.yml`:
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+```
+
+Once configured, you will be able to see cache metrics (like `cache.gets`, `cache.puts`, `cache.size`, `cache.evictions`) by visiting the `/actuator/metrics/cache.gets?tag=cache:l1Cache` endpoint.
+
 ## Troubleshooting
 
 ### Common Issues

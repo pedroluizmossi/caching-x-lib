@@ -92,6 +92,19 @@ public class CaffeineCacheAdapter implements CacheProvider {
         return null;
     }
 
+
+    /**
+     * Retrieves the underlying native Caffeine cache instance.
+     *
+     * <p>This method allows access to the raw Caffeine cache for advanced operations
+     * that may not be covered by the {@link CacheProvider} interface.</p>
+     *
+     * @return the native Caffeine cache instance
+     */
+    public Cache<String, Object> getNativeCache() {
+        return this.cache;
+    }
+
     /**
      * Stores a key-value pair in the cache.
      *

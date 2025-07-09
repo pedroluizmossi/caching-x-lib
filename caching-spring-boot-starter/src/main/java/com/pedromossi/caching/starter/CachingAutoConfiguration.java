@@ -6,6 +6,9 @@ import com.pedromossi.caching.CacheService;
 import com.pedromossi.caching.caffeine.CaffeineCacheAdapter;
 import com.pedromossi.caching.impl.MultiLevelCacheService;
 import com.pedromossi.caching.redis.RedisCacheAdapter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -18,6 +21,7 @@ import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -28,6 +32,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
@@ -41,6 +46,7 @@ import java.util.concurrent.ExecutorService;
 @EnableConfigurationProperties(CachingProperties.class)
 @ConditionalOnProperty(name = "caching.enabled", havingValue = "true", matchIfMissing = true)
 @AutoConfigureAfter(RedisAutoConfiguration.class)
+@Import(CachingMicrometerAutoConfiguration.class)
 public class CachingAutoConfiguration {
 
     @Bean
@@ -120,11 +126,15 @@ public class CachingAutoConfiguration {
         }
 
         @Bean("l2CacheProvider")
-        public CacheProvider l2CacheProvider(RedisTemplate<String, Object> redisTemplate, CachingProperties properties) {
+        public CacheProvider l2CacheProvider(
+                @Qualifier("cacheRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                CachingProperties properties,
+                ObjectMapper objectMapper) {
             return new RedisCacheAdapter(
                     redisTemplate,
                     properties.getL2().getInvalidationTopic(),
-                    properties.getL2().getTtl()
+                    properties.getL2().getTtl(),
+                    objectMapper
             );
         }
 
@@ -206,6 +216,57 @@ public class CachingAutoConfiguration {
             if (l1Cache != null) {
                 log.info("Received invalidation message from Redis. Invalidating L1 key: {}", message);
                 l1Cache.evict(message);
+            }
+        }
+    }
+
+    /**
+     * Creates a metrics binding service for L1 cache when Micrometer is available.
+     * This approach uses a bean method instead of a nested configuration class.
+     */
+    @Bean
+    @ConditionalOnBean(name = "l1CacheProvider")
+    @ConditionalOnProperty(name = "caching.l1.recordStats", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnClass(CaffeineCacheMetrics.class)
+    public CacheMetricsBindingService cacheMetricsBindingService(
+            @Qualifier("l1CacheProvider") CacheProvider l1CacheProvider,
+            MeterRegistry meterRegistry,
+            CachingProperties properties) {
+        return new CacheMetricsBindingService(l1CacheProvider, meterRegistry, properties);
+    }
+
+    /**
+     * Service class to handle cache metrics binding.
+     * This replaces the nested configuration class approach.
+     */
+    public static class CacheMetricsBindingService {
+        private static final Logger log = LoggerFactory.getLogger(CacheMetricsBindingService.class);
+
+        private final CacheProvider l1CacheProvider;
+        private final MeterRegistry meterRegistry;
+        private final CachingProperties properties;
+
+        public CacheMetricsBindingService(CacheProvider l1CacheProvider,
+                                        MeterRegistry meterRegistry,
+                                        CachingProperties properties) {
+            this.l1CacheProvider = l1CacheProvider;
+            this.meterRegistry = meterRegistry;
+            this.properties = properties;
+        }
+
+        @PostConstruct
+        public void bindL1CacheToMicrometer() {
+            String spec = properties.getL1().getSpec();
+            if (spec != null && spec.contains("recordStats")) {
+                if (l1CacheProvider instanceof CaffeineCacheAdapter adapter) {
+                    CaffeineCacheMetrics.monitor(meterRegistry, adapter.getNativeCache(), "l1Cache", Collections.emptyList());
+                    log.info("Metrics for L1 cache are now being recorded. " +
+                            "You can view them in your monitoring system under the 'l1Cache' name.");
+                }
+            } else {
+                log.warn("Metrics for L1 cache are not enabled. " +
+                        "To enable, ensure your Caffeine spec includes 'recordStats'. " +
+                        "Current spec: {}", spec);
             }
         }
     }
