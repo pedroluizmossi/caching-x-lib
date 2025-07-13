@@ -134,7 +134,7 @@ public class CachingAutoConfiguration {
                     redisTemplate,
                     properties.getL2().getInvalidationTopic(),
                     properties.getL2().getTtl(),
-                    objectMapper
+                    objectMapper.copy()
             );
         }
 

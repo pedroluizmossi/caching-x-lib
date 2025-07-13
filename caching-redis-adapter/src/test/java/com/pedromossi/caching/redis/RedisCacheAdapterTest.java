@@ -1,5 +1,6 @@
 package com.pedromossi.caching.redis;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,12 +28,13 @@ class RedisCacheAdapterTest {
 
     private final String invalidationTopic = "test-topic";
     private final Duration ttl = Duration.ofMinutes(30);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         // Configura o mock do RedisTemplate para retornar o mock do ValueOperations
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        redisCacheAdapter = new RedisCacheAdapter(redisTemplate, invalidationTopic, ttl);
+        redisCacheAdapter = new RedisCacheAdapter(redisTemplate, invalidationTopic, ttl, objectMapper);
     }
 
     @Test

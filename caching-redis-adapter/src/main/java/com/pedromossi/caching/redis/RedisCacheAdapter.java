@@ -1,5 +1,8 @@
 package com.pedromossi.caching.redis;
 
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.pedromossi.caching.CacheProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,18 +24,21 @@ public class RedisCacheAdapter implements CacheProvider {
     private final RedisTemplate<String, Object> redisTemplate;
     private final String invalidationTopic;
     private final Duration ttl;
+    private final ObjectMapper objectMapper; // Adicionado
 
     /**
      * Creates a new RedisCacheAdapter with the specified configuration.
      *
      * @param redisTemplate     Redis template for cache operations
      * @param invalidationTopic Redis pub/sub topic for cache invalidation events
-     * @param ttl                Time-to-live for cached entries
+     * @param ttl               Time-to-live for cached entries
+     * @param objectMapper      Jackson ObjectMapper for type conversion
      */
-    public RedisCacheAdapter(RedisTemplate<String, Object> redisTemplate, String invalidationTopic, Duration ttl) {
+    public RedisCacheAdapter(RedisTemplate<String, Object> redisTemplate, String invalidationTopic, Duration ttl, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.invalidationTopic = invalidationTopic;
         this.ttl = ttl;
+        this.objectMapper = objectMapper; // Adicionado
         log.info("RedisCacheAdapter initialized. Invalidation topic: {}, TTL: {}", invalidationTopic, ttl);
     }
 
@@ -40,15 +46,18 @@ public class RedisCacheAdapter implements CacheProvider {
     @SuppressWarnings("unchecked")
     public <T> T get(String key, ParameterizedTypeReference<T> typeRef) {
         try {
-            // Note: Deserialization from JSON to a generic type often requires the
-            // type reference. Your GenericJackson2JsonRedisSerializer already handles this.
             Object value = redisTemplate.opsForValue().get(key);
-            if (value != null) {
-                // The serializer should have already returned the correct type.
-                return (T) value;
+            if (value == null) {
+                return null;
             }
+
+            // CORREÇÃO: Converte o objeto (provavelmente um LinkedHashMap) para o tipo de destino
+            // usando o ObjectMapper e o ParameterizedTypeReference.
+            JavaType javaType = TypeFactory.defaultInstance().constructType(typeRef.getType());
+            return objectMapper.convertValue(value, javaType);
+
         } catch (Exception e) {
-            log.error("Error retrieving from Redis for key: {}", key, e);
+            log.error("Error retrieving or converting from Redis for key: {}", key, e);
         }
         return null;
     }
@@ -66,14 +75,12 @@ public class RedisCacheAdapter implements CacheProvider {
     public void evict(String key) {
         log.debug("Removing key from Redis and publishing invalidation: {}", key);
 
-        // Try to delete from Redis
         try {
             redisTemplate.delete(key);
         } catch (Exception e) {
             log.error("Error deleting key from Redis: {}", key, e);
         }
 
-        // Always try to publish invalidation message, even if delete failed
         try {
             redisTemplate.convertAndSend(invalidationTopic, key);
         } catch (Exception e) {

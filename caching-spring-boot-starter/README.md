@@ -96,11 +96,23 @@ public RedisTemplate<String, Object> cacheRedisTemplate(
 
 ### Redis Object Serialization
 
-By default, the caching-spring-boot-starter configures the RedisTemplate to use Jackson (JSON) to serialize cached objects. To ensure that objects can be deserialized back to their correct Java types, we enable Jackson's "Default Typing".
+The Redis adapter uses Jackson (JSON) for object serialization with enhanced type safety. The auto-configuration creates a secure ObjectMapper copy that:
 
-This means that the JSON stored in Redis will contain an additional `@class` attribute.
+- **Preserves Configuration**: Inherits all modules and settings from the main ObjectMapper
+- **Disables Default Typing**: Prevents deserialization vulnerabilities by not storing `@class` information
+- **Uses Type References**: Relies on `ParameterizedTypeReference` for proper deserialization
+- **Secure by Design**: No automatic class instantiation from JSON metadata
 
-If you need full control over serialization (for example, to share the cache with other applications or to remove the `@class` field), you can define your own RedisTemplate bean with the name `cacheRedisTemplate`.
+**Important**: Objects are serialized as pure JSON without type metadata. Deserialization uses the type information provided via `ParameterizedTypeReference` in the cache service methods.
+
+```java
+// This is how type-safe deserialization works:
+// 1. Object stored as: {"id": 123, "name": "John"}
+// 2. Retrieved with type info: new ParameterizedTypeReference<User>(){}
+// 3. ObjectMapper converts JSON → User instance
+```
+
+If you need custom serialization behavior, you can define your own RedisTemplate bean with the name `cacheRedisTemplate`.
 
 ```java
 @Configuration
