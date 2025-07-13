@@ -25,23 +25,75 @@ Managing multiple cache layers can be complex. Caching-X abstracts away the boil
 
 Caching-X follows a clear and optimized data lookup strategy.
 
+### Read Flow (getOrLoad)
+![image](https://github.com/user-attachments/assets/09560d96-6761-4e3d-afd6-21b34ab3d910)
+<details>
+<summary>Mermaid Code</summary>
+       
 ```
-Application Request
-       ↓
-   CacheService
-       ↓
-┌─────────────────┐
-│ L1 Cache (Fast) │ → Hit: Return immediately
-└─────────────────┘
-       ↓ Miss
-┌─────────────────┐
-│L2 Cache (Shared)│ → Hit: Promote to L1, return
-└─────────────────┘
-       ↓ Miss
-┌─────────────────┐
-│   Data Source   │ → Load, cache in both layers
-└─────────────────┘
+sequenceDiagram
+    participant App as Application
+    participant CacheService
+    participant L1 as L1 Cache (Caffeine)
+    participant L2 as L2 Cache (Redis)
+    participant DB as Data Source
+
+    App->>+CacheService: getOrLoad("key")
+    CacheService->>L1: get("key")
+
+    alt L1 Hit
+        L1-->>CacheService: Found! (Hit)
+        CacheService-->>-App: Return value from L1
+    else L1 Miss
+        L1-->>CacheService: Not Found (Miss)
+        CacheService->>L2: get("key")
+
+        alt L2 Hit
+            L2-->>CacheService: Found! (Hit)
+            Note right of CacheService: Promote to L1 in background
+            CacheService-->>App: Return value from L2
+            CacheService-xL1: put("key", value)
+        else L2 Miss
+            L2-->>CacheService: Not Found (Miss)
+            CacheService->>DB: Load from data source
+            DB-->>CacheService: Return value
+            Note right of CacheService: Store in L1 & L2 in background
+            CacheService-->>App: Return value from source
+            CacheService-xL2: put("key", value)
+            CacheService-xL1: put("key", value)
+        end
+    end
 ```
+</details>
+
+### Invalidation Flow (invalidate)
+
+![image](https://github.com/user-attachments/assets/935bd40f-2f86-4eea-9f61-1c9066b653b2)
+
+<details>
+<summary>Mermaid Code</summary>
+       
+```
+sequenceDiagram
+    participant App as Application
+    participant CacheService
+    participant L1 as L1 Cache (Local)
+    participant L2 as L2 Cache (Redis)
+    participant PubSub as Redis Pub/Sub
+    participant OtherApp as Other Instance
+
+    App->>+CacheService: invalidate("key")
+    Note right of CacheService: Asynchronous operation
+    CacheService-xL2: evict("key")
+    L2-xPubSub: Publish invalidation("key")
+    CacheService-xL1: evict("key")
+    deactivate CacheService
+    
+    OtherApp->>PubSub: Listens to topic
+    PubSub-->>OtherApp: Receives message("key")
+    OtherApp->>OtherApp: Invalidates local L1 for "key"
+```
+</details>
 
 ## Quick Start
 
