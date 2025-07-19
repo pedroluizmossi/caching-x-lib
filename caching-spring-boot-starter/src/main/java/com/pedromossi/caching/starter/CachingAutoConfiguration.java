@@ -1,8 +1,11 @@
 package com.pedromossi.caching.starter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
+import com.pedromossi.caching.aspect.CacheXAspect;
 import com.pedromossi.caching.caffeine.CaffeineCacheAdapter;
 import com.pedromossi.caching.impl.MultiLevelCacheService;
 import com.pedromossi.caching.redis.RedisCacheAdapter;
@@ -55,73 +58,38 @@ public class CachingAutoConfiguration {
         return new CaffeineCacheAdapter(properties.getL1().getSpec());
     }
 
+    @Bean
+    public CacheXAspect cacheXAspect(CacheService cacheService) {
+        return new CacheXAspect(cacheService);
+    }
+
     @Configuration
     @ConditionalOnClass(RedisTemplate.class)
     @ConditionalOnProperty(name = "caching.l2.enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnBean(RedisConnectionFactory.class)
     protected static class RedisCacheConfiguration {
 
-        /**
-         * Creates a RedisTemplate configured for caching with secure JSON serialization.
-         *
-         * <p>This template uses a copy of the application's primary ObjectMapper to ensure
-         * consistent serialization behavior. The {@code objectMapper.copy()} method preserves
-         * all registered modules from the primary ObjectMapper, including:</p>
-         * <ul>
-         *   <li>JavaTimeModule for date/time serialization</li>
-         *   <li>Custom serializers and deserializers</li>
-         *   <li>Property naming strategies</li>
-         *   <li>Feature configurations</li>
-         * </ul>
-         *
-         * <p><strong>Security Note:</strong> Default typing is intentionally disabled to prevent
-         * deserialization vulnerabilities. Objects are serialized/deserialized based on their
-         * declared types using the ParameterizedTypeReference provided in cache service methods.</p>
-         *
-         * <p><strong>When to provide a custom RedisTemplate:</strong></p>
-         * <ul>
-         *   <li>Custom MixIns that require specific configuration</li>
-         *   <li>Alternative serialization formats (Protobuf, Avro, etc.)</li>
-         *   <li>Custom Redis key/value serialization strategies</li>
-         *   <li>Integration with external systems requiring specific JSON format</li>
-         *   <li>Advanced Jackson configuration not covered by module inheritance</li>
-         * </ul>
-         *
-         * <p>To override this configuration, define your own bean with the name "cacheRedisTemplate":</p>
-         * <pre>{@code
-         * @Bean
-         * public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
-         *     RedisTemplate<String, Object> template = new RedisTemplate<>();
-         *     template.setConnectionFactory(factory);
-         *     // Your custom serialization configuration here
-         *     return template;
-         * }
-         * }</pre>
-         *
-         * @param connectionFactory the Redis connection factory
-         * @param objectMapper the primary ObjectMapper bean (all modules will be copied)
-         * @return a configured RedisTemplate for caching with secure JSON serialization
-         */
-        @Bean
+        @Bean("cachingObjectMapper")
+        public ObjectMapper cachingObjectMapper() {
+            return new ObjectMapper()
+                    .registerModule(new Jdk8Module())
+                    .registerModule(new JavaTimeModule());
+        }
+
+        @Bean("cacheRedisTemplate")
         @ConditionalOnMissingBean(name = "cacheRedisTemplate")
         public RedisTemplate<String, Object> cacheRedisTemplate(
                 RedisConnectionFactory connectionFactory,
-                ObjectMapper objectMapper) {
+                @Qualifier("cachingObjectMapper") ObjectMapper objectMapper) {
+
             RedisTemplate<String, Object> template = new RedisTemplate<>();
             template.setConnectionFactory(connectionFactory);
 
-            // Use a copy of the ObjectMapper without unsafe default typing
-            ObjectMapper secureMapper = objectMapper.copy();
-            // Do not activate default typing - this prevents deserialization vulnerabilities
-
-            GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(secureMapper);
+            GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
             template.setKeySerializer(new StringRedisSerializer());
             template.setValueSerializer(serializer);
-            template.setHashKeySerializer(new StringRedisSerializer());
-            template.setHashValueSerializer(serializer);
             template.afterPropertiesSet();
-
             return template;
         }
 
@@ -129,18 +97,17 @@ public class CachingAutoConfiguration {
         public CacheProvider l2CacheProvider(
                 @Qualifier("cacheRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 CachingProperties properties,
-                ObjectMapper objectMapper) {
+                @Qualifier("cachingObjectMapper") ObjectMapper objectMapper) {
             return new RedisCacheAdapter(
                     redisTemplate,
                     properties.getL2().getInvalidationTopic(),
                     properties.getL2().getTtl(),
-                    objectMapper.copy()
+                    objectMapper
             );
         }
 
         @Bean
         public MessageListenerAdapter redisInvalidationListener(InvalidationHandler invalidationHandler) {
-            // This listener will call the "handleMessage" method on InvalidationHandler
             return new MessageListenerAdapter(invalidationHandler, "handleMessage");
         }
 
