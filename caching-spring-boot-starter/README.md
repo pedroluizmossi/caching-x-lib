@@ -1,6 +1,6 @@
 # Caching-Spring-Boot-Starter Module
 
-The Spring Boot starter provides auto-configuration and seamless integration of the caching library with Spring Boot applications.
+The Spring Boot starter provides auto-configuration and seamless integration of the caching library with Spring Boot applications, including automatic setup for annotation-based caching.
 
 ## Overview
 
@@ -10,11 +10,13 @@ This module provides:
 - **Property Binding**: Type-safe configuration via `application.yml`
 - **Conditional Beans**: Smart activation based on classpath and properties
 - **Redis Integration**: Automatic Redis listener setup for invalidation
+- **Annotation Support**: Automatic `@CacheX` aspect configuration
 - **Zero Configuration**: Works out-of-the-box with sensible defaults
 
 ## Features
 
 - **Automatic Bean Creation**: Creates `CacheService`, `CacheProvider` beans
+- **AOP Integration**: Automatically configures `CacheXAspect` for annotation support
 - **Configuration Properties**: Externalized configuration via properties
 - **Conditional Loading**: Adapters only load when dependencies are present
 - **Redis Pub/Sub Setup**: Automatic invalidation listener configuration
@@ -30,6 +32,21 @@ The main auto-configuration class that:
 2. **Creates L2 Cache**: Redis adapter when Redis is available
 3. **Sets up Pub/Sub**: Redis message listeners for invalidation
 4. **Configures Service**: Multi-level cache service with both adapters
+5. **Enables AOP**: Automatically configures `CacheXAspect` for `@CacheX` annotation support
+
+### Annotation Support Configuration
+
+```java
+@Bean
+public CacheXAspect cacheXAspect(CacheService cacheService) {
+    return new CacheXAspect(cacheService);
+}
+```
+
+The starter automatically:
+- Creates the `CacheXAspect` bean
+- Enables Spring AOP processing for `@CacheX` annotations
+- Integrates the aspect with the configured `CacheService`
 
 ### Conditional Bean Creation
 
@@ -46,6 +63,7 @@ public CacheProvider l1CacheProvider(CachingProperties properties) {
 - **L2 Cache**: Created when Redis is available and `caching.l2.enabled=true`
 - **Redis Config**: Only loads when `RedisTemplate` is on classpath
 - **Message Listener**: Only when Redis is configured
+- **CacheX Aspect**: Always created when caching is enabled
 
 ## Configuration Properties
 
@@ -220,6 +238,8 @@ spring:
 
 ### 3. Use in Application
 
+#### Option A: Programmatic API
+
 ```java
 @Service
 public class UserService {
@@ -241,6 +261,106 @@ public class UserService {
     public void updateUser(User user) {
         userRepository.save(user);
         cacheService.invalidate("user:" + user.getId());
+    }
+}
+```
+
+#### Option B: Annotation-Based API
+
+```java
+@Service
+public class UserService {
+    
+    @Autowired  
+    private UserRepository userRepository;
+    
+    @CacheX(key = "'user:' + #userId")
+    public User getUser(Long userId) {
+        return userRepository.findById(userId).orElse(null);
+    }
+    
+    @CacheX(key = "'user:' + #user.id", operation = CacheX.Operation.EVICT)
+    public void updateUser(User user) {
+        userRepository.save(user);
+    }
+    
+    @CacheX(key = "'users:active'")
+    public List<User> getActiveUsers() {
+        return userRepository.findByActiveTrue();
+    }
+    
+    @CacheX(key = "'users:department:' + #departmentId", operation = CacheX.Operation.EVICT)
+    public void evictDepartmentUsers(Long departmentId) {
+        // Cache eviction method - implementation can be empty
+    }
+}
+```
+
+#### Option C: Mixed Approach
+
+You can combine both approaches in the same application:
+
+```java
+@Service
+public class ProductService {
+    
+    @Autowired
+    private CacheService cacheService;
+    
+    @Autowired
+    private ProductRepository productRepository;
+    
+    // Use annotation for simple cases
+    @CacheX(key = "'product:' + #id")
+    public Product getProduct(Long id) {
+        return productRepository.findById(id).orElse(null);
+    }
+    
+    // Use programmatic API for complex logic
+    public List<Product> getProductsWithComplexLogic(SearchCriteria criteria) {
+        String key = "products:search:" + criteria.hashCode();
+        
+        return cacheService.getOrLoad(key, 
+            new ParameterizedTypeReference<List<Product>>() {},
+            () -> {
+                // Complex search logic here
+                if (criteria.hasAdvancedFilters()) {
+                    return productRepository.searchAdvanced(criteria);
+                } else {
+                    return productRepository.searchBasic(criteria);
+                }
+            }
+        );
+    }
+}
+```
+
+## AOP Requirements
+
+For `@CacheX` annotations to work, ensure:
+
+1. **Spring AOP is enabled** (automatic with Spring Boot)
+2. **Classes are Spring-managed beans** (annotated with `@Service`, `@Component`, etc.)
+3. **Methods are public** (AOP limitation)
+4. **Self-invocation is avoided** (call annotated methods from other beans)
+
+### Common AOP Pitfalls
+
+```java
+@Service
+public class UserService {
+    
+    @CacheX(key = "'user:' + #id")
+    public User getUser(Long id) {
+        return userRepository.findById(id).orElse(null);
+    }
+    
+    public void someMethod() {
+        // ❌ This won't trigger caching (self-invocation)
+        User user = this.getUser(123L);
+        
+        // ✅ This will trigger caching (through proxy)
+        // Inject another service and call its @CacheX methods
     }
 }
 ```

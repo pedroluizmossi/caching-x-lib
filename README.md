@@ -9,11 +9,13 @@ Managing multiple cache layers can be complex. Caching-X abstracts away the boil
 - **Effortless Performance**: Get the speed of an in-memory cache (L1) and the scalability of a distributed cache (L2) without the implementation overhead.
 - **Built for Resilience**: Your application remains stable even if a cache layer fails.
 - **Developer-Friendly API**: A clean, intuitive API that leverages modern Java features and full type safety.
+- **Annotation-Based Caching**: Use `@CacheX` annotations for declarative caching with AOP support.
 - **Seamless Integration**: Auto-configured for Spring Boot, making setup a breeze.
 
 ## Key Features
 
 - **Multi-Level Caching**: Combines a lightning-fast L1 cache (Caffeine) with a distributed L2 cache (Redis).
+- **Annotation Support**: Declarative caching using `@CacheX` annotation with Spring AOP.
 - **Intelligent Cache Promotion**: Automatically promotes L2 cache hits to L1, ensuring frequently accessed data is served at maximum speed.
 - **Distributed Invalidation**: Keeps data consistent across all application instances with Redis Pub/Sub.
 - **Full Type Safety**: Generic-aware API using `ParameterizedTypeReference` to prevent `ClassCastException`.
@@ -135,7 +137,9 @@ caching:
 
 ### 3. Use in Your Code
 
-Inject `CacheService` and start caching.
+#### Option A: Programmatic API
+
+Inject `CacheService` and start caching:
 
 ```java
 @Service
@@ -160,6 +164,152 @@ public class ProductService {
     }
 }
 ```
+
+#### Option B: Annotation-Based Caching
+
+Use the `@CacheX` annotation for declarative caching:
+
+```java
+@Service
+public class ProductService {
+    
+    @CacheX(key = "'product:' + #productId")
+    public Product getProduct(String productId) {
+        // This method will be cached automatically
+        return productRepository.findById(productId).orElse(null);
+    }
+    
+    @CacheX(key = "'product:' + #product.id", operation = CacheX.Operation.EVICT)
+    public void updateProduct(Product product) {
+        productRepository.save(product);
+        // Cache will be invalidated after method execution
+    }
+    
+    @CacheX(key = "'products:featured'")
+    public List<Product> getFeaturedProducts() {
+        return productRepository.findFeatured();
+    }
+}
+```
+
+## Annotation-Based Caching with @CacheX
+
+The `@CacheX` annotation provides a declarative way to add caching to your methods using Spring AOP.
+
+### Basic Usage
+
+```java
+@CacheX(key = "'user:' + #userId")
+public User findUserById(Long userId) {
+    return userRepository.findById(userId).orElse(null);
+}
+```
+
+### Cache Operations
+
+#### GET Operation (Default)
+Caches the method result and returns cached values on subsequent calls:
+
+```java
+@CacheX(key = "'product:' + #id")  // operation = GET is default
+public Product getProduct(Long id) {
+    return productRepository.findById(id).orElse(null);
+}
+```
+
+#### EVICT Operation
+Invalidates the cache after successful method execution:
+
+```java
+@CacheX(key = "'product:' + #product.id", operation = CacheX.Operation.EVICT)
+public void updateProduct(Product product) {
+    productRepository.save(product);
+}
+```
+
+### SpEL Expression Support
+
+Cache keys support Spring Expression Language (SpEL) for dynamic key generation:
+
+```java
+// Method parameters
+@CacheX(key = "'user:' + #userId + ':profile'")
+public UserProfile getUserProfile(Long userId) { ... }
+
+// Object properties
+@CacheX(key = "'order:' + #order.id + ':items'")
+public List<OrderItem> getOrderItems(Order order) { ... }
+
+// Complex expressions
+@CacheX(key = "'search:' + #query.hashCode() + ':' + #page")
+public SearchResult search(SearchQuery query, int page) { ... }
+
+// Static expressions
+@CacheX(key = "'global:settings'")
+public Settings getGlobalSettings() { ... }
+```
+
+### Type Safety
+
+The annotation-based caching preserves full type safety using the method's return type:
+
+```java
+@CacheX(key = "'users:active'")
+public List<User> getActiveUsers() {
+    // Return type List<User> is preserved in cache
+    return userRepository.findActive();
+}
+
+@CacheX(key = "'config:' + #key")
+public Optional<String> getConfigValue(String key) {
+    // Optional<String> type is preserved
+    return configRepository.findByKey(key);
+}
+```
+
+### Best Practices
+
+1. **Key Design**: Use consistent, hierarchical key patterns
+   ```java
+   @CacheX(key = "'entity:type:' + #id")  // Good
+   @CacheX(key = "#id + '_cache'")        // Avoid
+   ```
+
+2. **Parameter Validation**: Ensure parameters are not null when used in keys
+   ```java
+   @CacheX(key = "'user:' + (#userId != null ? #userId : 'unknown')")
+   public User getUser(Long userId) { ... }
+   ```
+
+3. **Eviction Patterns**: Use consistent keys for cache and eviction
+   ```java
+   @CacheX(key = "'product:' + #id")
+   public Product getProduct(Long id) { ... }
+   
+   @CacheX(key = "'product:' + #product.id", operation = CacheX.Operation.EVICT)
+   public void updateProduct(Product product) { ... }
+   ```
+
+4. **Null Handling**: The cache handles null return values automatically
+   ```java
+   @CacheX(key = "'user:' + #id")
+   public User findUser(Long id) {
+       return userRepository.findById(id).orElse(null); // null is cached too
+   }
+   ```
+
+### Comparison with Programmatic API
+
+| Feature | Annotation `@CacheX` | Programmatic `CacheService` |
+|---------|---------------------|------------------------------|
+| **Syntax** | Declarative, clean | Imperative, explicit |
+| **AOP Integration** | Automatic | Manual |
+| **Key Expression** | SpEL support | String concatenation |
+| **Type Safety** | Automatic | Manual type reference |
+| **Method Wrapping** | Transparent | Explicit loader function |
+| **Cache-aside Pattern** | Built-in | Manual implementation |
+
+Choose annotations for clean, declarative caching, and the programmatic API for complex caching logic or dynamic key generation.
 
 ## Advanced Usage: Type-Safe Generics
 
