@@ -1,5 +1,7 @@
 package com.pedromossi.caching.annotation;
 
+import com.pedromossi.caching.aspect.CacheXAspect;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
