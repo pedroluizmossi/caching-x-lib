@@ -350,6 +350,8 @@ For a complete list of options, see the `CachingProperties` class in the starter
 
 ## Monitoring, Metrics & Observability
 
+<img width="2257" height="1085" alt="Screenshot From 2025-07-20 15-31-57" src="https://github.com/user-attachments/assets/a85413dc-af1b-400c-9d5c-189762a88284" />
+
 Caching-X provides a comprehensive metrics system for monitoring cache performance, health, and troubleshooting:
 
 ### 1. Granular Operation Metrics
