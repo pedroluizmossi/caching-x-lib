@@ -1,4 +1,3 @@
-// Código aderente ao Google Java Style Guide
 package com.pedromossi.caching.starter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +10,10 @@ import com.pedromossi.caching.caffeine.CaffeineCacheAdapter;
 import com.pedromossi.caching.impl.MultiLevelCacheService;
 import com.pedromossi.caching.micrometer.MetricsCollectingCacheProvider;
 import com.pedromossi.caching.redis.RedisCacheAdapter;
+import com.pedromossi.caching.resilience.CircuitBreakerCacheProvider;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import jakarta.annotation.PostConstruct;
@@ -143,6 +146,32 @@ public class CachingAutoConfiguration {
                     properties.getL2().getInvalidationTopic(),
                     properties.getL2().getTtl(),
                     objectMapper);
+        }
+
+        @Bean("l2CacheProvider")
+        @ConditionalOnProperty(name = "caching.l2.circuit-breaker.enabled", havingValue = "true")
+        public CacheProvider l2CacheProviderWithCircuitBreaker(
+                @Qualifier("l2CacheProvider") CacheProvider delegate,
+                CircuitBreakerRegistry circuitBreakerRegistry,
+                CachingProperties properties) {
+
+            log.info("L2 Cache Circuit Breaker is enabled.");
+
+            CachingProperties.CircuitBreakerProperties cbProps = properties.getL2().getCircuitBreaker();
+
+            CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
+                    .failureRateThreshold(cbProps.getFailureRateThreshold())
+                    .slowCallRateThreshold(cbProps.getSlowCallRateThreshold())
+                    .slowCallDurationThreshold(cbProps.getSlowCallDurationThreshold())
+                    .permittedNumberOfCallsInHalfOpenState(cbProps.getPermittedNumberOfCallsInHalfOpenState())
+                    .waitDurationInOpenState(cbProps.getWaitDurationInOpenState())
+                    .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
+                    .slidingWindowSize(100)
+                    .build();
+
+            CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("l2Cache", circuitBreakerConfig);
+
+            return new CircuitBreakerCacheProvider(delegate, circuitBreaker);
         }
 
         @Bean

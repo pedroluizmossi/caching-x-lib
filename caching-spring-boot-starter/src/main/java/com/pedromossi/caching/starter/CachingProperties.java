@@ -91,20 +91,12 @@ public class CachingProperties {
      * Configuration properties for L2 (Redis) cache.
      */
     public static class L2CacheProperties {
-        /**
-         * Enables or disables L2 (Redis) cache.
-         */
         private boolean enabled = true;
-        /**
-         * Redis topic used for publishing and listening to invalidation events.
-         */
         private String invalidationTopic = "cache:invalidation";
-        /**
-         * Default time-to-live (TTL) for items in Redis cache.
-         */
         private Duration ttl = Duration.ofHours(1);
 
-        // Getters and Setters
+        private CircuitBreakerProperties circuitBreaker = new CircuitBreakerProperties();
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -127,6 +119,14 @@ public class CachingProperties {
 
         public void setTtl(Duration ttl) {
             this.ttl = ttl;
+        }
+
+        public CircuitBreakerProperties getCircuitBreaker() {
+            return circuitBreaker;
+        }
+
+        public void setCircuitBreaker(CircuitBreakerProperties circuitBreaker) {
+            this.circuitBreaker = circuitBreaker;
         }
     }
 
@@ -154,5 +154,63 @@ public class CachingProperties {
         public void setMaxPoolSize(int maxPoolSize) { this.maxPoolSize = maxPoolSize; }
         public int getQueueCapacity() { return queueCapacity; }
         public void setQueueCapacity(int queueCapacity) { this.queueCapacity = queueCapacity; }
+    }
+
+    public static class CircuitBreakerProperties {
+        private boolean enabled = true;
+        private float failureRateThreshold = 50.0f;
+        private Duration slowCallDurationThreshold = Duration.ofSeconds(1);
+        private float slowCallRateThreshold = 100.0f;
+        private int permittedNumberOfCallsInHalfOpenState = 10;
+        private Duration waitDurationInOpenState = Duration.ofSeconds(60);
+
+        // Getters e Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public float getFailureRateThreshold() {
+            return failureRateThreshold;
+        }
+
+        public void setFailureRateThreshold(float failureRateThreshold) {
+            this.failureRateThreshold = failureRateThreshold;
+        }
+
+        public Duration getSlowCallDurationThreshold() {
+            return slowCallDurationThreshold;
+        }
+
+        public void setSlowCallDurationThreshold(Duration slowCallDurationThreshold) {
+            this.slowCallDurationThreshold = slowCallDurationThreshold;
+        }
+
+        public float getSlowCallRateThreshold() {
+            return slowCallRateThreshold;
+        }
+
+        public void setSlowCallRateThreshold(float slowCallRateThreshold) {
+            this.slowCallRateThreshold = slowCallRateThreshold;
+        }
+
+        public int getPermittedNumberOfCallsInHalfOpenState() {
+            return permittedNumberOfCallsInHalfOpenState;
+        }
+
+        public void setPermittedNumberOfCallsInHalfOpenState(int calls) {
+            this.permittedNumberOfCallsInHalfOpenState = calls;
+        }
+
+        public Duration getWaitDurationInOpenState() {
+            return waitDurationInOpenState;
+        }
+
+        public void setWaitDurationInOpenState(Duration waitDuration) {
+            this.waitDurationInOpenState = waitDuration;
+        }
     }
 }

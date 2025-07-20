@@ -23,7 +23,7 @@ import java.util.Collections;
  * better modularity and allow easier customization of metrics configuration.
  */
 @Configuration
-@ConditionalOnBean(name = "l1CacheProvider")
+@ConditionalOnBean(MeterRegistry.class)
 @ConditionalOnProperty(name = "caching.l1.recordStats", havingValue = "true", matchIfMissing = true)
 @AutoConfigureAfter(CachingAutoConfiguration.class)
 @EnableConfigurationProperties(CachingProperties.class)

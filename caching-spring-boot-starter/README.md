@@ -601,3 +601,227 @@ Expected log: `"MeterRegistry found. Enabling granular metrics for L1 cache."`
 **Native Caffeine metrics not appearing:**
 - Ensure `recordStats` is in L1 spec
 - Check `/actuator/metrics` for `cache.*` metrics with `cache:l1Cache` tag
+
+## Circuit Breaker & Resilience Protection
+
+The starter provides built-in circuit breaker protection for L2 (Redis) cache operations using Resilience4j, ensuring your application remains stable during Redis outages or performance issues.
+
+### Automatic Circuit Breaker Configuration
+
+When circuit breaker is enabled, the starter automatically:
+
+1. **Wraps L2 Cache Provider**: The `CircuitBreakerCacheProvider` decorates the Redis adapter
+2. **Monitors Operations**: Tracks failure rates, slow calls, and exception patterns
+3. **Manages State Transitions**: Automatically opens/closes the circuit based on Redis health
+4. **Provides Graceful Degradation**: Falls back to L1-only mode when L2 is unavailable
+
+### Configuration
+
+Enable and configure circuit breaker protection:
+
+```yaml
+caching:
+  l2:
+    enabled: true
+    circuit-breaker:
+      enabled: true                                    # Enable circuit breaker protection
+      failure-rate-threshold: 50.0                    # Open circuit at 50% failure rate
+      slow-call-rate-threshold: 100.0                 # Consider slow calls as failures  
+      slow-call-duration-threshold: PT1S              # Calls > 1s are considered slow
+      wait-duration-in-open-state: PT60S              # Wait 60s before testing recovery
+      permitted-number-of-calls-in-half-open-state: 10 # Test recovery with 10 calls
+```
+
+### Circuit Breaker States & Behavior
+
+#### CLOSED State (Normal Operation)
+```yaml
+# All cache operations proceed normally
+L1 Hit: ✅ Served from Caffeine (fast)
+L1 Miss + L2 Hit: ✅ Served from Redis + promoted to L1
+L1 Miss + L2 Miss: ✅ Load from source + cache in both layers
+```
+
+#### OPEN State (Redis Unavailable)
+```yaml
+# Circuit breaker blocks L2 operations
+L1 Hit: ✅ Served from Caffeine (unaffected)
+L1 Miss: ⚡ Fast-fail → Direct to data source (no Redis wait)
+Result: Application continues with degraded caching
+```
+
+#### HALF_OPEN State (Testing Recovery)
+```yaml
+# Limited requests test if Redis has recovered
+Test Requests: 🟡 10 calls allowed to pass through
+All Successful: ✅ Circuit CLOSED → Resume normal operation
+Any Failure: 🔴 Circuit OPEN → Continue degraded mode
+```
+
+### Benefits
+
+**Prevents Cascading Failures:**
+- Redis timeouts don't block your application
+- Failed Redis connections fail fast instead of hanging
+- L1 cache continues serving frequently accessed data
+
+**Automatic Recovery:**
+- Circuit breaker periodically tests Redis availability
+- Seamless transition back to normal operation when Redis recovers
+- No manual intervention required
+
+**Performance Protection:**
+- Slow Redis operations are detected and bypassed
+- Application latency remains stable during Redis performance issues
+- Thread pool exhaustion is prevented
+
+### Circuit Breaker Metrics
+
+When the circuit breaker is enabled, additional metrics are available:
+
+```bash
+# Circuit breaker state metrics (via Resilience4j)
+GET /actuator/metrics/resilience4j.circuitbreaker.state?tag=name:l2Cache
+GET /actuator/metrics/resilience4j.circuitbreaker.failure.rate?tag=name:l2Cache
+GET /actuator/metrics/resilience4j.circuitbreaker.slow.call.rate?tag=name:l2Cache
+
+# Standard cache metrics continue working
+GET /actuator/metrics/cache.operations.total?tag=cache.level:l2
+GET /actuator/metrics/cache.errors.total?tag=cache.level:l2
+```
+
+### Example Scenarios
+
+#### Scenario 1: Redis Connection Loss
+```yaml
+# Before failure
+L1 Miss Rate: 20%
+L2 Hit Rate: 80% 
+Average Response: 50ms
+
+# Redis goes down
+L2 Failures: 100% → Circuit OPENS
+L1 Miss → Database: Direct (no Redis wait)
+Average Response: 45ms (still fast!)
+
+# Redis recovers
+Circuit HALF_OPEN: Test 10 requests
+Success Rate: 100% → Circuit CLOSED
+Back to normal operation
+```
+
+#### Scenario 2: Redis Performance Degradation
+```yaml
+# Normal operation
+L2 Response Time: 50ms
+Circuit State: CLOSED
+
+# Network issues cause slow Redis
+L2 Response Time: 1.5s (> threshold)
+Slow Call Rate: 60% → Circuit OPENS
+Fast-fail fallback: 45ms response maintained
+
+# Network issues resolved
+Circuit tests recovery automatically
+L2 Response Time: 50ms → Circuit CLOSED
+```
+
+### Advanced Configuration
+
+#### Custom Circuit Breaker Settings
+
+```yaml
+caching:
+  l2:
+    circuit-breaker:
+      enabled: true
+      # Sliding window configuration
+      sliding-window-type: COUNT_BASED        # or TIME_BASED
+      sliding-window-size: 100               # Last 100 calls
+      minimum-number-of-calls: 10            # Need 10 calls before calculating rates
+      
+      # Failure thresholds
+      failure-rate-threshold: 60.0           # 60% failures trigger OPEN
+      slow-call-rate-threshold: 50.0         # 50% slow calls trigger OPEN
+      slow-call-duration-threshold: PT2S     # 2 seconds is considered slow
+      
+      # Recovery settings
+      wait-duration-in-open-state: PT30S     # Test recovery every 30s
+      permitted-number-of-calls-in-half-open-state: 5  # Test with 5 calls
+```
+
+#### Integration with Spring Boot Profiles
+
+```yaml
+# application-dev.yml (disable in development)
+caching:
+  l2:
+    circuit-breaker:
+      enabled: false
+
+# application-test.yml (disable in tests)
+caching:
+  l2:
+    circuit-breaker:
+      enabled: false
+
+# application-prod.yml (production settings)
+caching:
+  l2:
+    circuit-breaker:
+      enabled: true
+      failure-rate-threshold: 30.0      # More sensitive in production
+      slow-call-duration-threshold: PT500MS  # Tighter latency requirements
+```
+
+### Monitoring Circuit Breaker Health
+
+#### Log Messages
+
+The circuit breaker logs state transitions:
+
+```bash
+# Enable circuit breaker logging
+logging:
+  level:
+    com.pedromossi.caching.resilience.CircuitBreakerCacheProvider: INFO
+    io.github.resilience4j.circuitbreaker: DEBUG
+```
+
+Expected log output:
+```
+INFO  - L2 Cache Circuit Breaker state changed: StateTransition{from=CLOSED, to=OPEN, ...}
+WARN  - L2 Cache Circuit Breaker state changed: StateTransition{from=OPEN, to=HALF_OPEN, ...}
+INFO  - L2 Cache Circuit Breaker state changed: StateTransition{from=HALF_OPEN, to=CLOSED, ...}
+```
+
+#### Health Indicators
+
+Monitor circuit breaker health via actuator:
+
+```bash
+# Check overall health (includes circuit breaker status)
+GET /actuator/health
+
+# Detailed circuit breaker information
+GET /actuator/circuitbreakerevents/l2Cache
+GET /actuator/circuitbreakers
+```
+
+### Troubleshooting
+
+**Circuit breaker not activating:**
+- Verify `caching.l2.circuit-breaker.enabled=true`
+- Check that `minimum-number-of-calls` threshold is reached
+- Ensure failures exceed the configured `failure-rate-threshold`
+
+**Too sensitive (frequent opening):**
+- Increase `failure-rate-threshold` (e.g., from 50% to 70%)
+- Increase `slow-call-duration-threshold` for network latency
+- Increase `minimum-number-of-calls` for more stable measurements
+
+**Too permissive (not opening when it should):**
+- Decrease `failure-rate-threshold` (e.g., from 50% to 30%)
+- Decrease `slow-call-duration-threshold` for stricter latency requirements
+- Check that actual Redis failures are being detected
+
