@@ -1,6 +1,6 @@
 # Caching-Core Module
 
-Core interfaces, multi-level cache implementation with intelligent cache promotion, null value handling, and annotation-based caching support.
+Core interfaces, multi-level cache implementation with intelligent cache promotion, null value handling, annotation-based caching support, and resilience patterns.
 
 ## Components
 
@@ -98,6 +98,146 @@ Orchestrates L1 and L2 cache layers with automatic promotion strategy:
 - The aspect delegates to `MultiLevelCacheService.getOrLoad()` for GET operations
 - Uses `MultiLevelCacheService.invalidate()` for EVICT operations
 - Maintains the same cache flow and promotion strategy
+
+## Resilience & Circuit Breaker Support
+
+The core module provides the `CircuitBreakerCacheProvider` for protecting against cache layer failures using the circuit breaker pattern.
+
+### CircuitBreakerCacheProvider
+
+A decorator that wraps any `CacheProvider` implementation with Resilience4j circuit breaker protection:
+
+```java
+public class CircuitBreakerCacheProvider implements CacheProvider {
+    private final CacheProvider delegate;
+    private final CircuitBreaker circuitBreaker;
+    
+    // Wraps all cache operations with circuit breaker protection
+    // Monitors failures, slow calls, and automatically manages state transitions
+}
+```
+
+**Key Features:**
+- **Failure Detection**: Monitors exception rates and slow operation rates
+- **Automatic State Management**: Transitions between CLOSED, OPEN, and HALF_OPEN states
+- **Fast Failure**: Prevents cascading failures by failing fast when circuit is OPEN
+- **Automatic Recovery**: Periodically tests for recovery and restores normal operation
+- **Comprehensive Logging**: Logs all state transitions for monitoring and debugging
+
+### Integration with Multi-Level Caching
+
+When used with `MultiLevelCacheService`, the circuit breaker provides graceful degradation:
+
+```java
+// Circuit breaker typically wraps L2 (Redis) cache provider
+// L1 (Caffeine) continues operating normally during L2 failures
+
+L1 Hit: ✅ Served immediately (no circuit breaker involvement)
+L1 Miss + Circuit CLOSED: ✅ Normal L2 lookup + promotion
+L1 Miss + Circuit OPEN: ⚡ Skip L2, load from source directly
+```
+
+### Manual Configuration
+
+For non-Spring Boot applications, you can manually configure circuit breaker protection:
+
+```java
+@Configuration
+public class CacheResilienceConfig {
+    
+    @Bean
+    public CircuitBreakerRegistry circuitBreakerRegistry() {
+        CircuitBreakerConfig config = CircuitBreakerConfig.custom()
+            .failureRateThreshold(50.0f)
+            .slowCallRateThreshold(100.0f)
+            .slowCallDurationThreshold(Duration.ofSeconds(1))
+            .waitDurationInOpenState(Duration.ofSeconds(60))
+            .permittedNumberOfCallsInHalfOpenState(10)
+            .slidingWindowSize(100)
+            .build();
+            
+        return CircuitBreakerRegistry.of(config);
+    }
+    
+    @Bean
+    public CacheProvider resilientL2Cache(
+            CacheProvider l2CacheProvider,
+            CircuitBreakerRegistry registry) {
+        
+        CircuitBreaker circuitBreaker = registry.circuitBreaker("l2Cache");
+        return new CircuitBreakerCacheProvider(l2CacheProvider, circuitBreaker);
+    }
+}
+```
+
+### Circuit Breaker Events & Monitoring
+
+The `CircuitBreakerCacheProvider` automatically logs state transitions:
+
+```java
+// State transition logging
+circuitBreaker.getEventPublisher()
+    .onStateTransition(event -> 
+        log.warn("L2 Cache Circuit Breaker state changed: {}", event)
+    );
+```
+
+**Logged Events:**
+- `CLOSED → OPEN`: Circuit opens due to failures/slow calls
+- `OPEN → HALF_OPEN`: Circuit tests for recovery
+- `HALF_OPEN → CLOSED`: Circuit closes after successful recovery
+- `HALF_OPEN → OPEN`: Circuit reopens due to continued failures
+
+### Testing Circuit Breaker Behavior
+
+The core module includes comprehensive tests demonstrating circuit breaker behavior:
+
+```java
+// Example test scenarios from CircuitBreakerCacheProviderTest:
+
+@Test
+void shouldOpenCircuitAfterFailuresAndBlockCalls() {
+    // Simulates Redis failures triggering circuit breaker
+    // Verifies OPEN state blocks subsequent calls
+}
+
+@Test
+void shouldTransitionToHalfOpenAndCloseOnSuccess() {
+    // Tests recovery mechanism
+    // Verifies successful calls close the circuit
+}
+
+@Test
+void shouldOpenCircuitOnSlowCalls() {
+    // Tests slow call detection
+    // Verifies latency-based circuit opening
+}
+```
+
+### Error Handling & Resilience Patterns
+
+The circuit breaker implements several resilience patterns:
+
+**Fail-Fast Pattern:**
+```java
+// When circuit is OPEN
+L2 Operation → CircuitBreaker → CallNotPermittedException (immediate)
+// No waiting for timeouts, no resource exhaustion
+```
+
+**Bulkhead Pattern:**
+```java
+// L1 and L2 caches are isolated
+L1 Failure: ❌ L2 continues normally
+L2 Failure: ❌ L1 continues normally (circuit breaker protects)
+```
+
+**Graceful Degradation:**
+```java
+// Application continues with reduced caching capability
+Normal: L1 + L2 caching
+Degraded: L1-only caching + direct data source access
+```
 
 ## Metrics Integration
 
@@ -299,4 +439,18 @@ This will show:
 - Performance measurement details
 - Error classification logs
 
-> For complete metrics configuration and monitoring setup, see [caching-spring-boot-starter/README.md](../caching-spring-boot-starter/README.md#monitoring-and-observability).
+**Circuit Breaker Logging:**
+```yaml
+logging:
+  level:
+    com.pedromossi.caching.resilience.CircuitBreakerCacheProvider: INFO
+    io.github.resilience4j.circuitbreaker: DEBUG
+```
+
+This will show:
+- Circuit breaker state transitions
+- Failure and slow call detection
+- Recovery attempts and results
+- Performance impact of circuit breaker operations
+
+> For complete metrics and circuit breaker configuration and monitoring setup, see [caching-spring-boot-starter/README.md](../caching-spring-boot-starter/README.md#monitoring-and-observability).
