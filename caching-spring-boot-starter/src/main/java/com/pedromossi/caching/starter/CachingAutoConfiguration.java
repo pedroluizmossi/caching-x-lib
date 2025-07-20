@@ -192,9 +192,9 @@ public class CachingAutoConfiguration {
      * This approach uses a bean method instead of a nested configuration class.
      */
     @Bean
-    @ConditionalOnBean(name = "l1CacheProvider")
+    @ConditionalOnClass(MeterRegistry.class)
+    @ConditionalOnBean(MeterRegistry.class)
     @ConditionalOnProperty(name = "caching.l1.recordStats", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnClass(CaffeineCacheMetrics.class)
     public CacheMetricsBindingService cacheMetricsBindingService(
             @Qualifier("l1CacheProvider") CacheProvider l1CacheProvider,
             MeterRegistry meterRegistry,
