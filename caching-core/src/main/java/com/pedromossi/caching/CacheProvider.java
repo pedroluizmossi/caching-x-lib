@@ -2,6 +2,9 @@ package com.pedromossi.caching;
 
 import org.springframework.core.ParameterizedTypeReference;
 
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Core interface for cache providers in the caching library.
  *
@@ -99,4 +102,123 @@ public interface CacheProvider {
      * @throws NullPointerException if key is null
      */
     void evict(String key);
+
+    /**
+     * Retrieves multiple values from the cache with type safety in a single operation.
+     *
+     * <p>This method performs efficient batch retrieval of cached values for
+     * multiple keys simultaneously. It provides the same type safety guarantees
+     * as {@link #get(String, ParameterizedTypeReference)} but optimized for
+     * bulk operations to minimize cache access overhead.</p>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Reduces cache access overhead through batched operations</li>
+     *   <li>Minimizes network round trips for distributed cache implementations</li>
+     *   <li>Optimizes memory allocation and CPU usage</li>
+     *   <li>Enables more efficient cache backend utilization</li>
+     * </ul>
+     *
+     * <p><strong>Partial Results:</strong> The returned map will only contain
+     * entries for keys that were found in the cache and successfully deserialized
+     * to the expected type. Missing keys or keys with incompatible types will
+     * be absent from the result map.</p>
+     *
+     * <p><strong>Empty Results:</strong> If no keys are found or all cached
+     * values are incompatible with the requested type, an empty map is returned
+     * (not null).</p>
+     *
+     * <p><strong>Thread Safety:</strong> Implementations must ensure this method
+     * is thread-safe and can be called concurrently from multiple threads.</p>
+     *
+     * @param <T> the expected type of all cached values
+     * @param keys the set of cache keys to lookup (must not be null, empty sets are allowed)
+     * @param typeRef a reference to the expected type for all values
+     * @return a map containing found keys and their corresponding values cast to type T.
+     *         Missing keys or type-incompatible values will be absent from the map.
+     *         Never returns null, but may return an empty map.
+     * @throws NullPointerException if keys or typeRef is null
+     * @see #get(String, ParameterizedTypeReference)
+     * @see ParameterizedTypeReference
+     */
+    <T> Map<String, T> getAll(Set<String> keys, ParameterizedTypeReference<T> typeRef);
+
+    /**
+     * Stores multiple key-value pairs in the cache in a single operation.
+     *
+     * <p>This method performs efficient batch storage of multiple cache entries
+     * simultaneously. It provides the same storage semantics as
+     * {@link #put(String, Object)} but optimized for bulk operations to
+     * minimize cache access overhead and improve performance.</p>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Reduces cache access overhead through batched operations</li>
+     *   <li>Minimizes network round trips for distributed cache implementations</li>
+     *   <li>Enables atomic batch operations where supported by the cache backend</li>
+     *   <li>Optimizes memory allocation and serialization processes</li>
+     * </ul>
+     *
+     * <p><strong>Existing Key Behavior:</strong> For keys that already exist
+     * in the cache, the behavior follows the same semantics as individual
+     * {@code put} operations - existing values are typically overwritten.</p>
+     *
+     * <p><strong>Null Values:</strong> The handling of null values in the map
+     * follows the same implementation-specific behavior as single-key puts.
+     * Some implementations may treat null values as deletion requests.</p>
+     *
+     * <p><strong>Partial Failures:</strong> In case of partial failures during
+     * batch operations, implementations should make best effort to store as
+     * many entries as possible while documenting specific failure behavior.</p>
+     *
+     * <p><strong>Thread Safety:</strong> Implementations must ensure this method
+     * is thread-safe and can be called concurrently from multiple threads.</p>
+     *
+     * @param items a map of key-value pairs to store in the cache
+     *              (must not be null, empty maps are allowed but result in no-op)
+     * @throws NullPointerException if items is null or contains null keys
+     * @throws IllegalArgumentException if any key or value is not supported by the implementation
+     * @see #put(String, Object)
+     */
+    void putAll(Map<String, Object> items);
+
+    /**
+     * Removes multiple keys from the cache in a single operation.
+     *
+     * <p>This method performs efficient batch eviction of multiple cache keys
+     * simultaneously. It provides the same eviction semantics as
+     * {@link #evict(String)} but optimized for bulk operations to minimize
+     * cache access overhead and improve performance.</p>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Reduces cache access overhead through batched operations</li>
+     *   <li>Minimizes network round trips for distributed cache implementations</li>
+     *   <li>Enables atomic batch eviction where supported by the cache backend</li>
+     *   <li>Optimizes resource utilization during bulk cleanup operations</li>
+     * </ul>
+     *
+     * <p><strong>Missing Key Behavior:</strong> Keys that don't exist in the
+     * cache are ignored without any error. The operation completes successfully
+     * regardless of whether the keys were actually present.</p>
+     *
+     * <p><strong>Propagation:</strong> For distributed cache implementations (L2),
+     * this method may trigger batch invalidation events that are propagated
+     * to other cache instances or application nodes, maintaining cache
+     * consistency across the distributed system more efficiently than
+     * individual evictions.</p>
+     *
+     * <p><strong>Atomicity:</strong> While implementations should strive for
+     * atomic batch eviction, the actual atomicity guarantees depend on the
+     * underlying cache backend capabilities.</p>
+     *
+     * <p><strong>Thread Safety:</strong> Implementations must ensure this method
+     * is thread-safe and can be called concurrently from multiple threads.</p>
+     *
+     * @param keys the set of cache keys to remove
+     *             (must not be null, empty sets are allowed but result in no-op)
+     * @throws NullPointerException if keys is null or contains null elements
+     * @see #evict(String)
+     */
+    void evictAll(Set<String> keys);
 }

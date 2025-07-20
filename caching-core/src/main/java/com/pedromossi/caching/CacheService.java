@@ -2,6 +2,9 @@ package com.pedromossi.caching;
 
 import org.springframework.core.ParameterizedTypeReference;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -132,4 +135,102 @@ public interface CacheService {
      * @throws NullPointerException if key is null
      */
     void invalidate(String key);
+
+    /**
+     * Retrieves multiple items from cache layers or loads them from the data source in a single operation.
+     *
+     * <p>This method provides efficient batch processing for multiple cache lookups,
+     * implementing the same cache-aside pattern as {@link #getOrLoad(String, ParameterizedTypeReference, Supplier)}
+     * but optimized for bulk operations. It minimizes network round trips and
+     * improves performance when dealing with multiple cache keys.</p>
+     *
+     * <p><strong>Execution Flow:</strong></p>
+     * <ol>
+     *   <li>Attempts to retrieve all keys from L1 cache (local memory)</li>
+     *   <li>For L1 misses, attempts to retrieve remaining keys from L2 cache (distributed)</li>
+     *   <li>For cache misses, executes the loader function with the remaining keys</li>
+     *   <li>Stores the loaded values asynchronously in appropriate cache layers</li>
+     *   <li>Returns a consolidated map containing all requested values</li>
+     * </ol>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Reduces network round trips for distributed cache access</li>
+     *   <li>Enables batch loading from data sources (e.g., database bulk queries)</li>
+     *   <li>Minimizes cache layer overhead through batched operations</li>
+     *   <li>Optimizes memory allocation through bulk operations</li>
+     * </ul>
+     *
+     * <p><strong>Partial Results:</strong> If some keys are found in cache and others
+     * need to be loaded, the method efficiently combines cached results with
+     * newly loaded data. The loader function only receives keys that were not
+     * found in any cache layer.</p>
+     *
+     * <p><strong>Error Handling:</strong> If the loader fails for any subset of keys,
+     * implementations should still return successfully cached values while
+     * propagating the loader exception. This ensures partial success scenarios
+     * are handled gracefully.</p>
+     *
+     * @param <T> the type of the cached values
+     * @param keys a set of unique identifiers for the cached items (must not be null or empty)
+     * @param typeRef a reference to the expected type for all values
+     * @param loader a function that receives missing keys and returns a map of
+     *               key-value pairs for those keys (must not be null)
+     * @return a map containing all requested keys with their corresponding values.
+     *         Keys that couldn't be loaded will be absent from the returned map
+     * @throws NullPointerException if keys, typeRef, or loader is null
+     * @throws IllegalArgumentException if keys is empty
+     * @throws RuntimeException if the loader function throws an exception
+     * @see #getOrLoad(String, ParameterizedTypeReference, Supplier)
+     * @see ParameterizedTypeReference
+     */
+    <T> Map<String, T> getOrLoadAll(
+            Set<String> keys,
+            ParameterizedTypeReference<T> typeRef,
+            Function<Set<String>, Map<String, T>> loader);
+
+    /**
+     * Invalidates multiple cache keys across all cache layers and application instances in a single operation.
+     *
+     * <p>This method provides efficient batch invalidation for multiple cache keys,
+     * performing the same comprehensive invalidation as {@link #invalidate(String)}
+     * but optimized for bulk operations. It significantly reduces network overhead
+     * and improves performance when invalidating multiple related cache entries.</p>
+     *
+     * <p><strong>Batch Invalidation Flow:</strong></p>
+     * <ol>
+     *   <li>Invalidates all keys from L1 cache in a single operation</li>
+     *   <li>Invalidates all keys from L2 cache using bulk operations</li>
+     *   <li>Publishes a single batch invalidation event to the message bus</li>
+     *   <li>Other instances receive the batch event and invalidate their L1 caches</li>
+     * </ol>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Reduces network round trips for distributed cache invalidation</li>
+     *   <li>Minimizes message bus overhead through batched events</li>
+     *   <li>Improves cache consistency through atomic batch operations</li>
+     *   <li>Optimizes resource utilization during bulk invalidation</li>
+     * </ul>
+     *
+     * <p><strong>Atomicity Considerations:</strong> While implementations should
+     * strive for atomic batch invalidation, network failures or partial
+     * distributed operations may result in some keys being invalidated while
+     * others remain cached. Applications should design cache invalidation
+     * strategies with eventual consistency in mind.</p>
+     *
+     * <p><strong>Use Cases:</strong></p>
+     * <ul>
+     *   <li>Invalidating related data after bulk database operations</li>
+     *   <li>Cache warming/refresh strategies for related entities</li>
+     *   <li>Cleanup operations during maintenance windows</li>
+     *   <li>Tag-based or pattern-based cache invalidation</li>
+     * </ul>
+     *
+     * @param keys a set of cache keys to invalidate across all layers and instances
+     *             (must not be null, empty sets are allowed but result in no-op)
+     * @throws NullPointerException if keys is null
+     * @see #invalidate(String)
+     */
+    void invalidateAll(Set<String> keys);
 }

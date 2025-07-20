@@ -59,6 +59,11 @@
             <version>2.2.0</version>
             <scope>compile</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>4.2.1</version> <!-- Usar a versão gerenciada pelo BOM ou uma versão explícita -->
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

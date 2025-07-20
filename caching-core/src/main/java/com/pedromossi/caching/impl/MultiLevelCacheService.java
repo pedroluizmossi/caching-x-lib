@@ -8,8 +8,9 @@ import org.springframework.core.ParameterizedTypeReference;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -326,5 +327,204 @@ public class MultiLevelCacheService implements CacheService {
     @SuppressWarnings("unchecked")
     private <T> T unwrapNullValue(Object cachedValue) {
         return cachedValue instanceof NullValue ? null : (T) cachedValue;
+    }
+
+    @Override
+    /**
+     * Retrieves multiple items from cache layers or loads them from the data source in a single operation.
+     *
+     * <p>This method implements an optimized multi-level caching algorithm for batch operations,
+     * designed to minimize network round trips and improve performance when dealing with multiple
+     * cache keys simultaneously. It follows the same cache-aside pattern as the single-key version
+     * but with batch-optimized operations.</p>
+     *
+     * <p><strong>Batch Lookup Strategy:</strong></p>
+     * <ol>
+     *   <li><strong>L1 Batch Check:</strong> Attempt to retrieve all keys from local cache in one operation</li>
+     *   <li><strong>L2 Batch Check:</strong> For L1 misses, batch query the distributed cache</li>
+     *   <li><strong>Batch Promotion:</strong> Asynchronously promote L2 hits to L1 cache</li>
+     *   <li><strong>Batch Loading:</strong> Execute loader function with remaining missing keys</li>
+     *   <li><strong>Batch Storage:</strong> Asynchronously store loaded values in both cache layers</li>
+     * </ol>
+     *
+     * <p><strong>Performance Optimizations:</strong></p>
+     * <ul>
+     *   <li>Uses LinkedHashSet to preserve key order for deterministic behavior</li>
+     *   <li>Minimizes cache provider calls through bulk operations</li>
+     *   <li>Reduces network overhead for distributed cache access</li>
+     *   <li>Enables efficient data source bulk loading (e.g., SQL IN clauses)</li>
+     * </ul>
+     *
+     * <p><strong>Partial Results Handling:</strong> The method gracefully handles scenarios where
+     * some keys are found in cache layers while others need to be loaded. The final result
+     * contains all successfully retrieved and loaded values.</p>
+     *
+     * @param <T> the type of the cached values
+     * @param keys a set of unique identifiers for the cached items (must not be null)
+     * @param typeRef a reference to the expected type for all values (must not be null)
+     * @param loader a function that receives missing keys and returns a map of key-value pairs (must not be null)
+     * @return a map containing all successfully retrieved keys with their corresponding values
+     * @throws NullPointerException if any parameter is null
+     * @throws RuntimeException if the loader function throws an exception
+     * @see #getOrLoad(String, ParameterizedTypeReference, Supplier)
+     */
+    public <T> Map<String, T> getOrLoadAll(
+            Set<String> keys,
+            ParameterizedTypeReference<T> typeRef,
+            Function<Set<String>, Map<String, T>> loader) {
+
+        final Map<String, T> result = new HashMap<>();
+        // Use LinkedHashSet to preserve order of input keys for deterministic cache calls
+        final Set<String> missingKeys = new LinkedHashSet<>(keys);
+
+        // 1. Try to get all keys from L1 cache
+        if (l1Cache != null) {
+            try {
+                Map<String, T> l1Result = l1Cache.getAll(keys, typeRef);
+                l1Result.forEach((key, value) -> result.put(key, unwrapNullValue(value)));
+                missingKeys.removeAll(l1Result.keySet());
+                if (!l1Result.isEmpty()) {
+                    log.debug("Cache HIT on L1 for keys: {}", l1Result.keySet());
+                }
+            } catch (Exception e) {
+                log.error("Error reading from L1 cache for keys {}: {}", missingKeys, e.getMessage(), e);
+            }
+        }
+
+        if (missingKeys.isEmpty()) {
+            return result;
+        }
+
+        // 2. Try to get the remaining keys from L2 cache, preserving order
+        if (l2Cache != null) {
+            try {
+                Map<String, T> l2Result = l2Cache.getAll(new LinkedHashSet<>(missingKeys), typeRef);
+                if (!l2Result.isEmpty()) {
+                    log.debug("Cache HIT on L2 for keys: {}", l2Result.keySet());
+                    // Add to final result and promote to L1
+                    l2Result.forEach((key, value) -> result.put(key, unwrapNullValue(value)));
+                    missingKeys.removeAll(l2Result.keySet());
+
+                    if (l1Cache != null) {
+                        executor.execute(() -> {
+                            try {
+                                l1Cache.putAll(new HashMap<>(l2Result));
+                            } catch (Exception ex) {
+                                log.error("Error promoting values to L1: {}", ex.getMessage(), ex);
+                            }
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error reading from L2 cache for keys {}: {}", missingKeys, e.getMessage(), e);
+            }
+        }
+
+        if (missingKeys.isEmpty()) {
+            return result;
+        }
+
+        // 3. Load the remaining keys from the data source
+        log.debug("Complete cache MISS for keys: {}. Executing loader.", missingKeys);
+        Map<String, T> loadedFromSource = loader.apply(missingKeys);
+
+        // Add loaded values to the final result
+        result.putAll(loadedFromSource);
+
+        // Populate caches with loaded data
+        final Map<String, Object> valuesToStore = new HashMap<>();
+        missingKeys.forEach(
+                key -> valuesToStore.put(key, wrapNullValue(loadedFromSource.get(key))));
+
+        if (!valuesToStore.isEmpty()) {
+            executor.execute(() -> storeInCaches(valuesToStore));
+        }
+
+        return result;
+    }
+
+    @Override
+    /**
+     * Invalidates multiple cache keys across all cache layers and distributed instances in a single operation.
+     *
+     * <p>This method provides comprehensive batch invalidation that ensures data consistency
+     * across the entire multi-level caching infrastructure. It follows the same invalidation
+     * strategy as single-key invalidation but optimized for bulk operations.</p>
+     *
+     * <p><strong>Batch Invalidation Strategy:</strong></p>
+     * <ol>
+     *   <li><strong>L2 Batch Eviction:</strong> Remove all keys from distributed cache first</li>
+     *   <li><strong>Event Broadcasting:</strong> Publish batch invalidation events to other instances</li>
+     *   <li><strong>L1 Batch Eviction:</strong> Remove all keys from local cache</li>
+     * </ol>
+     *
+     * <p><strong>Ordering Rationale:</strong> L2 invalidation occurs first to ensure that
+     * distributed invalidation events are published before local caches are cleared,
+     * maintaining consistency in multi-instance deployments.</p>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Reduces network round trips for distributed cache operations</li>
+     *   <li>Minimizes message bus overhead through batched event publishing</li>
+     *   <li>Optimizes resource utilization during bulk invalidation</li>
+     *   <li>Enables atomic invalidation where supported by cache providers</li>
+     * </ul>
+     *
+     * <p><strong>Error Handling:</strong> Individual key invalidation failures are logged
+     * but don't prevent the invalidation of other keys in the batch. This ensures
+     * maximum invalidation coverage even in partial failure scenarios.</p>
+     *
+     * @param keys a set of cache keys to invalidate across all layers and instances (must not be null)
+     * @throws NullPointerException if keys is null
+     * @see #invalidate(String)
+     */
+    public void invalidateAll(Set<String> keys) {
+        log.debug("Scheduling invalidation for keys: {}", keys);
+        executor.execute(() -> {
+            if (l2Cache != null) {
+                try {
+                    l2Cache.evictAll(keys);
+                } catch (Exception e) {
+                    log.error("Error invalidating L2 cache for keys {}: {}", keys, e.getMessage(), e);
+                }
+            }
+            if (l1Cache != null) {
+                try {
+                    l1Cache.evictAll(keys);
+                } catch (Exception e) {
+                    log.error("Error invalidating L1 cache for keys {}: {}", keys, e.getMessage(), e);
+                }
+            }
+        });
+    }
+
+    /**
+     * Stores multiple values in all available cache layers asynchronously.
+     *
+     * <p>This internal method handles batch cache population after multiple values
+     * are loaded from the original data source. It stores all values in both L1 and L2
+     * caches to optimize future batch access patterns.</p>
+     *
+     * <p><strong>Storage Strategy:</strong> Values are stored in L2 (distributed) cache
+     * first to enable data sharing across instances, followed by L1 (local) cache
+     * for immediate future access optimization.</p>
+     *
+     * @param items a map of key-value pairs to store (must not be null)
+     */
+    private void storeInCaches(Map<String, Object> items) {
+        if (l2Cache != null) {
+            try {
+                l2Cache.putAll(items);
+            } catch (Exception e) {
+                log.error("Error saving values to L2: {}", e.getMessage(), e);
+            }
+        }
+        if (l1Cache != null) {
+            try {
+                l1Cache.putAll(items);
+            } catch (Exception e) {
+                log.error("Error saving values to L1: {}", e.getMessage(), e);
+            }
+        }
     }
 }

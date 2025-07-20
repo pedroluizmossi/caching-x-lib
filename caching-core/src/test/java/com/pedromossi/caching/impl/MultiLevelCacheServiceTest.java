@@ -9,12 +9,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.ParameterizedTypeReference;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -287,4 +292,50 @@ class MultiLevelCacheServiceTest {
         verify(l1Cache).evict(key);
         verify(l2Cache).evict(key);
     }
+
+    @Test
+    void getOrLoadAll_shouldFetchFromAllLevelsAndUseLoaderForMissingKeys() {
+        // Given
+        var typeRef = new ParameterizedTypeReference<String>() {};
+        Set<String> allKeys = Set.of("key1", "key2", "key3", "key4");
+        Set<String> keysMissingFromL1 = Set.of("key2", "key3", "key4");
+        Set<String> keysMissingFromL2 = Set.of("key3", "key4");
+
+        // When l1Cache is queried with all keys, it returns only key1
+        when(l1Cache.getAll(eq(allKeys), eq(typeRef))).thenReturn(Map.of("key1", "value1_L1"));
+
+        // When l2Cache is queried with missing keys, it returns only key2
+        when(l2Cache.getAll(eq(keysMissingFromL1), eq(typeRef))).thenReturn(Map.of("key2", "value2_L2"));
+
+        // Loader returns values for key3 and key4
+        Function<Set<String>, Map<String, String>> loader = missingKeys -> {
+            assertThat(missingKeys).containsExactlyInAnyOrderElementsOf(keysMissingFromL2);
+            return Map.of("key3", "value3_Source", "key4", "value4_Source");
+        };
+
+        // When
+        Map<String, String> result = cacheService.getOrLoadAll(allKeys, typeRef, loader);
+
+        // Then
+        // 1. Verify result contains all expected values
+        assertThat(result)
+                .hasSize(4)
+                .containsEntry("key1", "value1_L1")
+                .containsEntry("key2", "value2_L2")
+                .containsEntry("key3", "value3_Source")
+                .containsEntry("key4", "value4_Source");
+
+        // 2. Verify the correct cache interactions occurred
+        verify(l1Cache).getAll(eq(allKeys), eq(typeRef));
+        verify(l2Cache).getAll(eq(keysMissingFromL1), eq(typeRef));
+
+        // 3. Verify cache population
+        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(l1Cache).putAll(eq(Map.of("key2", "value2_L2")));
+            Map<String, Object> sourceDataToStore = Map.of("key3", "value3_Source", "key4", "value4_Source");
+            verify(l1Cache).putAll(eq(sourceDataToStore));
+            verify(l2Cache).putAll(eq(sourceDataToStore));
+        });
+    }
+
 }
