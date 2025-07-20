@@ -1,3 +1,4 @@
+// Código aderente ao Google Java Style Guide
 package com.pedromossi.caching.starter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,10 +9,14 @@ import com.pedromossi.caching.CacheService;
 import com.pedromossi.caching.aspect.CacheXAspect;
 import com.pedromossi.caching.caffeine.CaffeineCacheAdapter;
 import com.pedromossi.caching.impl.MultiLevelCacheService;
+import com.pedromossi.caching.micrometer.MetricsCollectingCacheProvider;
 import com.pedromossi.caching.redis.RedisCacheAdapter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import jakarta.annotation.PostConstruct;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,13 +40,9 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.Collections;
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-
 /**
- * Spring Boot auto-configuration class for the caching library.
- * Creates and configures cache beans based on application properties.
+ * Spring Boot auto-configuration class for the caching library. Creates and configures cache
+ * beans based on application properties.
  *
  * @since 1.0.0
  */
@@ -52,10 +53,29 @@ import java.util.concurrent.ExecutorService;
 @Import(CachingMicrometerAutoConfiguration.class)
 public class CachingAutoConfiguration {
 
-    @Bean
+    private static final Logger log = LoggerFactory.getLogger(CachingAutoConfiguration.class);
+
+    @Configuration
     @ConditionalOnProperty(name = "caching.l1.enabled", havingValue = "true", matchIfMissing = true)
-    public CacheProvider l1CacheProvider(CachingProperties properties) {
-        return new CaffeineCacheAdapter(properties.getL1().getSpec());
+    static class L1CacheConfiguration {
+
+        @Bean("l1CacheProvider")
+        @ConditionalOnBean(MeterRegistry.class)
+        public CacheProvider l1CacheProviderWithMetrics(
+                CachingProperties properties, MeterRegistry meterRegistry) {
+            log.info("MeterRegistry found. Enabling granular metrics for L1 cache.");
+            CacheProvider caffeineAdapter = new CaffeineCacheAdapter(properties.getL1().getSpec());
+            return new MetricsCollectingCacheProvider(caffeineAdapter, meterRegistry, "l1");
+        }
+
+        @Bean("l1CacheProvider")
+        @ConditionalOnMissingBean(MeterRegistry.class)
+        public CacheProvider l1CacheProviderWithoutMetrics(CachingProperties properties) {
+            log.warn(
+                    "MeterRegistry not found. Granular metrics for L1 cache are disabled. "
+                            + "Add 'spring-boot-starter-actuator' to enable them.");
+            return new CaffeineCacheAdapter(properties.getL1().getSpec());
+        }
     }
 
     @Bean
@@ -84,9 +104,8 @@ public class CachingAutoConfiguration {
 
             RedisTemplate<String, Object> template = new RedisTemplate<>();
             template.setConnectionFactory(connectionFactory);
-
-            GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
-
+            GenericJackson2JsonRedisSerializer serializer =
+                    new GenericJackson2JsonRedisSerializer(objectMapper);
             template.setKeySerializer(new StringRedisSerializer());
             template.setValueSerializer(serializer);
             template.afterPropertiesSet();
@@ -94,16 +113,36 @@ public class CachingAutoConfiguration {
         }
 
         @Bean("l2CacheProvider")
-        public CacheProvider l2CacheProvider(
+        @ConditionalOnBean(MeterRegistry.class)
+        public CacheProvider l2CacheProviderWithMetrics(
+                @Qualifier("cacheRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                CachingProperties properties,
+                @Qualifier("cachingObjectMapper") ObjectMapper objectMapper,
+                MeterRegistry meterRegistry) {
+            log.info("MeterRegistry found. Enabling granular metrics for L2 cache.");
+            CacheProvider redisAdapter =
+                    new RedisCacheAdapter(
+                            redisTemplate,
+                            properties.getL2().getInvalidationTopic(),
+                            properties.getL2().getTtl(),
+                            objectMapper);
+            return new MetricsCollectingCacheProvider(redisAdapter, meterRegistry, "l2");
+        }
+
+        @Bean("l2CacheProvider")
+        @ConditionalOnMissingBean(MeterRegistry.class)
+        public CacheProvider l2CacheProviderWithoutMetrics(
                 @Qualifier("cacheRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 CachingProperties properties,
                 @Qualifier("cachingObjectMapper") ObjectMapper objectMapper) {
+            log.warn(
+                    "MeterRegistry not found. Granular metrics for L2 cache are disabled. "
+                            + "Add 'spring-boot-starter-actuator' to enable them.");
             return new RedisCacheAdapter(
                     redisTemplate,
                     properties.getL2().getInvalidationTopic(),
                     properties.getL2().getTtl(),
-                    objectMapper
-            );
+                    objectMapper);
         }
 
         @Bean
@@ -118,26 +157,18 @@ public class CachingAutoConfiguration {
         }
 
         @Bean
-        @ConditionalOnMissingBean(name = "cacheRedisTemplate")
         public RedisMessageListenerContainer redisMessageListenerContainer(
                 RedisConnectionFactory connectionFactory,
                 MessageListenerAdapter redisInvalidationListener,
                 CachingProperties properties) {
             RedisMessageListenerContainer container = new RedisMessageListenerContainer();
             container.setConnectionFactory(connectionFactory);
-            container.addMessageListener(redisInvalidationListener, new ChannelTopic(properties.getL2().getInvalidationTopic()));
+            container.addMessageListener(
+                    redisInvalidationListener, new ChannelTopic(properties.getL2().getInvalidationTopic()));
             return container;
         }
     }
 
-    /**
-     * Creates a dedicated thread pool for asynchronous cache operations.
-     * This allows isolating cache I/O from the main application threads.
-     * Users can override this bean to provide a custom executor.
-     *
-     * @param properties Configuration properties.
-     * @return A configured Executor for caching tasks.
-     */
     @Bean("cachingTaskExecutor")
     @ConditionalOnMissingBean(name = "cachingTaskExecutor")
     public ExecutorService cachingTaskExecutor(CachingProperties properties) {
@@ -151,20 +182,14 @@ public class CachingAutoConfiguration {
         return executor.getThreadPoolExecutor();
     }
 
-
     @Bean
     public CacheService cacheService(
             @Qualifier("l1CacheProvider") Optional<CacheProvider> l1CacheProvider,
             @Qualifier("l2CacheProvider") Optional<CacheProvider> l2CacheProvider,
-            @Qualifier("cachingTaskExecutor") ExecutorService executorService
-    ) {
+            @Qualifier("cachingTaskExecutor") ExecutorService executorService) {
         return new MultiLevelCacheService(l1CacheProvider, l2CacheProvider, executorService);
     }
 
-    /**
-     * Inner class to handle Redis invalidation messages.
-     * This is a bean so Spring can manage it and inject dependencies if needed.
-     */
     public static class InvalidationHandler {
         private static final Logger log = LoggerFactory.getLogger(InvalidationHandler.class);
         private final CacheProvider l1Cache;
@@ -173,12 +198,6 @@ public class CachingAutoConfiguration {
             this.l1Cache = l1Cache;
         }
 
-        /**
-         * Method called by MessageListenerAdapter when a message arrives on the topic.
-         * This method is invoked via reflection by Spring's MessageListenerAdapter.
-         *
-         * @param message The cache key to be invalidated.
-         */
         public void handleMessage(String message) {
             if (l1Cache != null) {
                 log.info("Received invalidation message from Redis. Invalidating L1 key: {}", message);
@@ -187,14 +206,10 @@ public class CachingAutoConfiguration {
         }
     }
 
-    /**
-     * Creates a metrics binding service for L1 cache when Micrometer is available.
-     * This approach uses a bean method instead of a nested configuration class.
-     */
     @Bean
-    @ConditionalOnClass(MeterRegistry.class)
-    @ConditionalOnBean(MeterRegistry.class)
-    @ConditionalOnProperty(name = "caching.l1.recordStats", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnClass(CaffeineCacheMetrics.class)
+    @ConditionalOnBean(name = "l1CacheProvider", value = MeterRegistry.class)
+    @ConditionalOnProperty(name = "caching.l1.spec", havingValue = "recordStats", matchIfMissing = false)
     public CacheMetricsBindingService cacheMetricsBindingService(
             @Qualifier("l1CacheProvider") CacheProvider l1CacheProvider,
             MeterRegistry meterRegistry,
@@ -202,20 +217,14 @@ public class CachingAutoConfiguration {
         return new CacheMetricsBindingService(l1CacheProvider, meterRegistry, properties);
     }
 
-    /**
-     * Service class to handle cache metrics binding.
-     * This replaces the nested configuration class approach.
-     */
     public static class CacheMetricsBindingService {
         private static final Logger log = LoggerFactory.getLogger(CacheMetricsBindingService.class);
-
         private final CacheProvider l1CacheProvider;
         private final MeterRegistry meterRegistry;
         private final CachingProperties properties;
 
-        public CacheMetricsBindingService(CacheProvider l1CacheProvider,
-                                        MeterRegistry meterRegistry,
-                                        CachingProperties properties) {
+        public CacheMetricsBindingService(
+                CacheProvider l1CacheProvider, MeterRegistry meterRegistry, CachingProperties properties) {
             this.l1CacheProvider = l1CacheProvider;
             this.meterRegistry = meterRegistry;
             this.properties = properties;
@@ -226,14 +235,12 @@ public class CachingAutoConfiguration {
             String spec = properties.getL1().getSpec();
             if (spec != null && spec.contains("recordStats")) {
                 if (l1CacheProvider instanceof CaffeineCacheAdapter adapter) {
-                    CaffeineCacheMetrics.monitor(meterRegistry, adapter.getNativeCache(), "l1Cache", Collections.emptyList());
-                    log.info("Metrics for L1 cache are now being recorded. " +
-                            "You can view them in your monitoring system under the 'l1Cache' name.");
+                    CaffeineCacheMetrics.monitor(
+                            meterRegistry, adapter.getNativeCache(), "l1Cache", Collections.emptyList());
+                    log.info("Caffeine native stats for L1 cache are bound to Micrometer.");
+                } else if (l1CacheProvider instanceof MetricsCollectingCacheProvider decorator) {
+                    log.info("Attempting to bind Caffeine native stats through decorator...");
                 }
-            } else {
-                log.warn("Metrics for L1 cache are not enabled. " +
-                        "To enable, ensure your Caffeine spec includes 'recordStats'. " +
-                        "Current spec: {}", spec);
             }
         }
     }

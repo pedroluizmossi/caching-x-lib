@@ -22,6 +22,7 @@ Managing multiple cache layers can be complex. Caching-X abstracts away the boil
 - **Null Value Caching**: Prevents cache stampedes by safely caching `null` results from your data source.
 - **Asynchronous Operations**: All cache writes and invalidations are non-blocking, keeping your application responsive.
 - **Error Resilience**: Gracefully handles cache layer failures without crashing your application.
+- **Comprehensive Metrics**: Built-in granular metrics for cache operations, performance monitoring, and native Caffeine statistics integration via Spring Boot Actuator endpoints.
 
 ## Architecture
 
@@ -346,6 +347,93 @@ All settings are available under the `caching` prefix.
 | `caching.async.core-pool-size` | Core thread pool size for async tasks.    | `2`                                    |
 
 For a complete list of options, see the `CachingProperties` class in the starter module.
+
+## Monitoring, Metrics & Observability
+
+Caching-X provides a comprehensive metrics system for monitoring cache performance, health, and troubleshooting:
+
+### 1. Granular Operation Metrics
+
+When Spring Boot Actuator is available, Caching-X automatically wraps cache providers with `MetricsCollectingCacheProvider` to track:
+
+- **Cache Operations**: `cache.operations.total` with tags for hits/misses and cache level
+- **Operation Latency**: `cache.latency` with percentiles (50th, 95th, 99th) for get/put/evict operations
+- **Error Tracking**: `cache.errors.total` with exception types and operation details
+- **Payload Size**: `cache.payload.size.bytes` for monitoring data volume
+
+**Key Features:**
+- **Per-Level Metrics**: Separate metrics for L1 and L2 cache layers
+- **Key Prefix Grouping**: Metrics are grouped by key prefixes (e.g., "user:", "product:") to avoid high cardinality
+- **Operation Breakdown**: Detailed metrics for each cache operation type
+- **Error Classification**: Tracks different types of cache failures
+
+### 2. Native Caffeine Statistics
+
+For L1 cache (Caffeine), you can enable native statistics by adding `recordStats` to the cache specification:
+
+```yaml
+caching:
+  l1:
+    spec: "maximumSize=1000,expireAfterWrite=10m,recordStats"
+```
+
+This exposes standard Caffeine metrics via `/actuator/metrics`:
+- `cache.gets` - Cache get operations
+- `cache.puts` - Cache put operations
+- `cache.evictions` - Cache evictions
+- `cache.size` - Current cache size
+- `cache.hit.ratio` - Cache hit ratio
+
+### 3. CacheX Actuator Endpoint
+
+Custom endpoint at `/actuator/cachex` provides:
+
+- **Cache Status**: `GET /actuator/cachex` — Shows L1/L2 status and available actions
+- **Key Inspection**: `GET /actuator/cachex/{key}` — Inspects specific keys across cache layers
+- **Key Eviction**: `DELETE /actuator/cachex/{key}` — Evicts keys from all cache layers
+
+### Example Metrics Queries
+
+```bash
+# Granular operation metrics
+GET /actuator/metrics/cache.operations.total?tag=cache.level:l1&tag=result:hit
+GET /actuator/metrics/cache.latency?tag=cache.level:l2&tag=operation:get
+
+# Native Caffeine metrics (when recordStats enabled)
+GET /actuator/metrics/cache.gets?tag=cache:l1Cache
+GET /actuator/metrics/cache.hit.ratio?tag=cache:l1Cache
+
+# CacheX endpoint
+GET /actuator/cachex
+GET /actuator/cachex/user:123
+DELETE /actuator/cachex/user:123
+```
+
+### Configuration for Metrics
+
+Enable comprehensive monitoring:
+
+```yaml
+# Enable metrics collection
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,cachex
+  endpoint:
+    health:
+      show-details: always
+
+# Enable Caffeine native stats (optional)
+caching:
+  l1:
+    spec: "maximumSize=1000,expireAfterWrite=10m,recordStats"
+```
+
+**Note**: Granular metrics via `MetricsCollectingCacheProvider` are automatically enabled when `MeterRegistry` is available. Native Caffeine metrics require explicit `recordStats` configuration.
+
+> For detailed configuration and usage examples, see [caching-spring-boot-starter/README.md](caching-spring-boot-starter/README.md#monitoring-and-observability).
+
 
 ## Modules
 

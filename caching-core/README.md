@@ -99,6 +99,54 @@ Orchestrates L1 and L2 cache layers with automatic promotion strategy:
 - Uses `MultiLevelCacheService.invalidate()` for EVICT operations
 - Maintains the same cache flow and promotion strategy
 
+## Metrics Integration
+
+The core module provides the foundation for comprehensive metrics collection through the `MetricsCollectingCacheProvider` decorator:
+
+### MetricsCollectingCacheProvider
+
+A decorator that wraps any `CacheProvider` implementation to collect detailed operation metrics:
+
+```java
+public class MetricsCollectingCacheProvider implements CacheProvider {
+    // Wraps existing cache providers with metrics collection
+    // Automatically applied by Spring Boot starter when MeterRegistry is available
+}
+```
+
+**Collected Metrics:**
+- **Operation Counts**: Total cache operations with hit/miss classification
+- **Latency Tracking**: Response times with percentile distributions (50th, 95th, 99th)
+- **Error Monitoring**: Exception tracking with detailed context
+- **Payload Analysis**: Size distribution for stored data
+
+**Smart Key Grouping:**
+Uses key prefix extraction (`user:123` → `user`) to avoid metric cardinality explosion while maintaining useful grouping.
+
+### Integration with Spring Boot Starter
+
+When used with the Spring Boot starter:
+- Automatically wraps L1 and L2 cache providers when `MeterRegistry` is present
+- Provides dual-layer metrics: custom granular metrics + native Caffeine statistics
+- Exposes metrics via standard Spring Boot Actuator endpoints
+- No code changes required - metrics are collected transparently
+
+### Manual Integration
+
+For non-Spring Boot applications:
+
+```java
+@Configuration
+public class CacheMetricsConfig {
+    
+    @Bean
+    public CacheProvider metricsEnabledL1Cache(MeterRegistry meterRegistry) {
+        CacheProvider caffeine = new CaffeineCacheAdapter("maximumSize=1000");
+        return new MetricsCollectingCacheProvider(caffeine, meterRegistry, "l1");
+    }
+}
+```
+
 ## Null Value Handling
 
 Uses an internal sentinel pattern to cache null values, preventing cache stampeding:
@@ -237,3 +285,18 @@ Debug logs will show:
 - Cache hits and misses
 - Key generation results
 - Operation completion status
+
+**Metrics-Related Logging:**
+```yaml
+logging:
+  level:
+    com.pedromossi.caching.micrometer.MetricsCollectingCacheProvider: DEBUG
+```
+
+This will show:
+- Metric collection events
+- Key prefix extraction results
+- Performance measurement details
+- Error classification logs
+
+> For complete metrics configuration and monitoring setup, see [caching-spring-boot-starter/README.md](../caching-spring-boot-starter/README.md#monitoring-and-observability).

@@ -443,26 +443,40 @@ public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory f
 }
 ```
 
-## Monitoring and Health
+## Monitoring and Observability
 
-### Actuator Integration
+### Comprehensive Metrics System
 
-The starter integrates with Spring Boot Actuator:
+The starter provides a dual-layer metrics system for complete cache observability:
 
-```yaml
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,caches
-  endpoint:
-    health:
-      show-details: always
-```
+#### 1. Granular Operation Metrics (MetricsCollectingCacheProvider)
 
-### Cache Statistics
+When `MeterRegistry` is available (via `spring-boot-starter-actuator`), cache providers are automatically wrapped with `MetricsCollectingCacheProvider` to collect detailed metrics:
 
-Enable Caffeine statistics:
+**Available Metrics:**
+- `cache.operations.total` - Total cache operations with tags:
+  - `cache.level`: "l1" or "l2"
+  - `result`: "hit" or "miss" (for get operations)
+- `cache.latency` - Operation latency with percentiles (50th, 95th, 99th):
+  - `cache.level`: "l1" or "l2"
+  - `operation`: "get", "put", or "evict"
+  - `key.prefix`: Extracted key prefix for grouping
+- `cache.errors.total` - Error tracking with tags:
+  - `cache.level`: "l1" or "l2"
+  - `operation`: "get", "put", or "evict"
+  - `exception.type`: Exception class name
+  - `key.prefix`: Extracted key prefix
+- `cache.payload.size.bytes` - Payload size distribution (for put operations)
+
+**Smart Key Prefix Extraction:**
+Metrics use key prefixes (part before first `:`) to group related operations without causing high cardinality issues:
+- `user:123` → prefix: `user`
+- `product:456` → prefix: `product`
+- `global-config` → prefix: `none`
+
+#### 2. Native Caffeine Statistics
+
+For L1 cache, enable Caffeine's built-in statistics by adding `recordStats` to the cache specification:
 
 ```yaml
 caching:
@@ -470,15 +484,61 @@ caching:
     spec: "maximumSize=1000,expireAfterWrite=10m,recordStats"
 ```
 
-Access via JMX or custom endpoints.
+This automatically binds Caffeine metrics to Micrometer:
+- `cache.gets` - Get operations count
+- `cache.puts` - Put operations count
+- `cache.evictions` - Eviction count
+- `cache.size` - Current cache size
+- `cache.hit.ratio` - Cache hit ratio
 
-## Monitoring with Micrometer
+#### 3. CacheX Actuator Endpoint
 
-If you are using Spring Boot Actuator, metrics for the L1 cache (Caffeine) can be exposed automatically.
+Custom endpoint `/actuator/cachex` provides operational capabilities:
 
-### 1. Add the Actuator dependency
+- **`GET /actuator/cachex`** - Cache layer status and available actions
+- **`GET /actuator/cachex/{key}`** - Inspect specific cache key across layers
+- **`DELETE /actuator/cachex/{key}`** - Evict key from all cache layers
 
-Make sure `spring-boot-starter-actuator` is in your `pom.xml`:
+**Example Response:**
+```json
+{
+  "l1Cache": "ENABLED",
+  "l2Cache": "ENABLED", 
+  "actions": {
+    "inspectKey": "GET /actuator/cachex/{key}",
+    "evictKey": "DELETE /actuator/cachex/{key}"
+  }
+}
+```
+
+### Configuration for Metrics
+
+#### Enable Comprehensive Monitoring
+
+```yaml
+# Enable actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,cachex
+  endpoint:
+    health:
+      show-details: always
+
+# Enable both granular and native metrics
+caching:
+  l1:
+    enabled: true
+    spec: "maximumSize=1000,expireAfterWrite=10m,recordStats" # recordStats enables native metrics
+  l2:
+    enabled: true
+    ttl: PT1H
+```
+
+#### Dependencies for Metrics
+
+Add Spring Boot Actuator for complete metrics support:
 
 ```xml
 <dependency>
@@ -487,79 +547,57 @@ Make sure `spring-boot-starter-actuator` is in your `pom.xml`:
 </dependency>
 ```
 
-### 2. Enable Caffeine Statistics
+### Metrics Behavior Matrix
 
-For metrics to be collected, you must include `recordStats` in the L1 cache specification in your `application.yml`:
+| MeterRegistry Available | recordStats Enabled | Granular Metrics | Native Caffeine Metrics |
+|------------------------|-------------------|------------------|-------------------------|
+| ✅ Yes | ✅ Yes | ✅ Enabled | ✅ Enabled |
+| ✅ Yes | ❌ No | ✅ Enabled | ❌ Disabled |
+| ❌ No | ✅ Yes | ❌ Disabled | ❌ Disabled |
+| ❌ No | ❌ No | ❌ Disabled | ❌ Disabled |
 
-```yaml
-caching:
-  l1:
-    enabled: true
-    spec: "maximumSize=1000,expireAfterWrite=10m,recordStats" # Add recordStats here
+**Note**: Granular metrics are automatically enabled when `MeterRegistry` is detected. Native Caffeine metrics require explicit `recordStats` in the L1 spec.
+
+### Example Metrics Queries
+
+```bash
+# Granular operation metrics
+curl "/actuator/metrics/cache.operations.total?tag=cache.level:l1&tag=result:hit"
+curl "/actuator/metrics/cache.latency?tag=cache.level:l2&tag=operation:get"
+curl "/actuator/metrics/cache.errors.total?tag=cache.level:l1&tag=operation:put"
+
+# Native Caffeine metrics (requires recordStats)
+curl "/actuator/metrics/cache.gets?tag=cache:l1Cache"
+curl "/actuator/metrics/cache.hit.ratio?tag=cache:l1Cache"
+curl "/actuator/metrics/cache.size?tag=cache:l1Cache"
+
+# CacheX endpoint
+curl "/actuator/cachex"
+curl "/actuator/cachex/user:123"
+curl -X DELETE "/actuator/cachex/user:123"
 ```
 
-### 3. Expose the Metrics Endpoint
+### Monitoring Integration
 
-Expose the `/actuator/metrics` endpoint in your `application.yml`:
+The metrics are compatible with popular monitoring systems:
 
+- **Prometheus**: Scrape `/actuator/prometheus` endpoint
+- **Grafana**: Create dashboards using Micrometer metrics
+- **New Relic/DataDog**: Automatic metric collection via Micrometer
+- **Spring Boot Admin**: Built-in cache monitoring views
+
+### Troubleshooting Metrics
+
+**Granular metrics not appearing:**
 ```yaml
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, metrics
-```
-
-Once configured, you will be able to see cache metrics (like `cache.gets`, `cache.puts`, `cache.size`, `cache.evictions`) by visiting the `/actuator/metrics/cache.gets?tag=cache:l1Cache` endpoint.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Redis Not Available**
-   - L2 cache will be disabled automatically
-   - Application continues with L1 cache only
-
-2. **Serialization Issues**
-   - Ensure cached objects are JSON-serializable
-   - Check ObjectMapper configuration
-
-3. **Memory Issues**
-   - Monitor L1 cache size limits
-   - Adjust Caffeine specifications
-
-### Debug Logging
-
-```yaml
+# Check if MeterRegistry is available
 logging:
   level:
-    com.pedromossi.caching: DEBUG
-    org.springframework.data.redis: DEBUG
+    com.pedromossi.caching.starter.CachingAutoConfiguration: DEBUG
 ```
 
-This will show:
-- Cache configuration details
-- Hit/miss statistics  
-- Invalidation events
-- Redis operations
-- Error conditions
+Expected log: `"MeterRegistry found. Enabling granular metrics for L1 cache."`
 
-## Dependencies
-
-The starter automatically pulls in required dependencies:
-
-```xml
-<!-- Automatically included -->
-<dependency>
-    <groupId>com.pedromossi</groupId>
-    <artifactId>caching-core</artifactId>
-</dependency>
-<dependency>
-    <groupId>com.pedromossi</groupId>
-    <artifactId>caching-caffeine-adapter</artifactId>
-</dependency>
-<dependency>
-    <groupId>com.pedromossi</groupId>
-    <artifactId>caching-redis-adapter</artifactId>
-</dependency>
-```
+**Native Caffeine metrics not appearing:**
+- Ensure `recordStats` is in L1 spec
+- Check `/actuator/metrics` for `cache.*` metrics with `cache:l1Cache` tag
