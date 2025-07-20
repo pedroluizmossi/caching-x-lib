@@ -1,13 +1,13 @@
 # Caching-X: High-Performance Multi-Level Caching for Java
 
-**Caching-X** is a powerful, type-safe, and resilient multi-level caching library for modern Java applications. It simplifies the complexity of managing local (L1) and distributed (L2) caches, providing a seamless and high-performance solution out of the box.
+**Caching-X** is a powerful, type-safe, and resilient multi-level caching library for modern Java applications. It simplifies the complexity of managing local (L1) and distributed (L2) caches, providing a seamless and high-performance solution out of of the box.
 
 ## Why Caching-X?
 
 Managing multiple cache layers can be complex. Caching-X abstracts away the boilerplate, providing an intelligent, production-ready caching strategy that just works.
 
 - **Effortless Performance**: Get the speed of an in-memory cache (L1) and the scalability of a distributed cache (L2) without the implementation overhead.
-- **Built for Resilience**: Your application remains stable even if a cache layer fails.
+- **Built for Resilience**: Your application remains stable even if a cache layer fails, with circuit breaker protection for L2 cache operations.
 - **Developer-Friendly API**: A clean, intuitive API that leverages modern Java features and full type safety.
 - **Annotation-Based Caching**: Use `@CacheX` annotations for declarative caching with AOP support.
 - **Seamless Integration**: Auto-configured for Spring Boot, making setup a breeze.
@@ -21,6 +21,7 @@ Managing multiple cache layers can be complex. Caching-X abstracts away the boil
 - **Full Type Safety**: Generic-aware API using `ParameterizedTypeReference` to prevent `ClassCastException`.
 - **Null Value Caching**: Prevents cache stampedes by safely caching `null` results from your data source.
 - **Asynchronous Operations**: All cache writes and invalidations are non-blocking, keeping your application responsive.
+- **Circuit Breaker Protection**: Resilience4j-powered circuit breaker protects against L2 cache failures, automatically falling back to L1-only mode.
 - **Error Resilience**: Gracefully handles cache layer failures without crashing your application.
 - **Comprehensive Metrics**: Built-in granular metrics for cache operations, performance monitoring, and native Caffeine statistics integration via Spring Boot Actuator endpoints.
 
@@ -347,6 +348,53 @@ All settings are available under the `caching` prefix.
 | `caching.async.core-pool-size` | Core thread pool size for async tasks.    | `2`                                    |
 
 For a complete list of options, see the `CachingProperties` class in the starter module.
+
+## Circuit Breaker & Resilience
+
+Caching-X includes built-in circuit breaker protection for the L2 (Redis) cache layer using Resilience4j, ensuring your application remains stable even when the distributed cache experiences issues.
+
+### How It Works
+
+When enabled, the circuit breaker wraps L2 cache operations and monitors for:
+- **High failure rates** (e.g., Redis connection failures)
+- **Slow operations** (e.g., network timeouts)
+- **Exception patterns** (e.g., serialization errors)
+
+**Circuit States:**
+- **CLOSED**: Normal operation, all requests pass through
+- **OPEN**: L2 cache is bypassed, requests fail fast to prevent cascading failures
+- **HALF_OPEN**: Limited requests allowed to test if L2 cache has recovered
+
+### Graceful Degradation
+
+When the circuit breaker opens:
+1. **L1 cache continues working** normally for frequently accessed data
+2. **Cache misses go directly to the data source** (bypassing broken L2)
+3. **Application performance is maintained** with slightly higher database load
+4. **Automatic recovery** when L2 cache becomes healthy again
+
+### Example Scenarios
+
+**Redis Down:**
+```
+L1 Hit: ✅ Served from local cache (normal speed)
+L1 Miss: ⚡ Circuit OPEN → Direct to database (fallback)
+Result: Application continues with minimal impact
+```
+
+**Redis Slow:**
+```
+Slow Response > 1s: ⚠️ Counted as failure
+Failure Rate > 50%: 🔴 Circuit OPEN
+Fast Fallback: ⚡ No more waiting for slow Redis
+```
+
+**Redis Recovery:**
+```
+Circuit HALF_OPEN: 🟡 Test 10 requests
+All Successful: ✅ Circuit CLOSED → Normal operation
+Any Failure: 🔴 Circuit OPEN → Continue fallback
+```
 
 ## Monitoring, Metrics & Observability
 
