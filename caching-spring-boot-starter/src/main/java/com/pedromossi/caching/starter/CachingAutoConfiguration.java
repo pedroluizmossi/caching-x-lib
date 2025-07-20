@@ -116,62 +116,53 @@ public class CachingAutoConfiguration {
         }
 
         @Bean("l2CacheProvider")
-        @ConditionalOnBean(MeterRegistry.class)
-        public CacheProvider l2CacheProviderWithMetrics(
+        public CacheProvider l2CacheProvider(
                 @Qualifier("cacheRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 CachingProperties properties,
                 @Qualifier("cachingObjectMapper") ObjectMapper objectMapper,
-                MeterRegistry meterRegistry) {
-            log.info("MeterRegistry found. Enabling granular metrics for L2 cache.");
-            CacheProvider redisAdapter =
+                Optional<MeterRegistry> meterRegistry,
+                Optional<CircuitBreakerRegistry> circuitBreakerRegistry) {
+
+            CacheProvider provider =
                     new RedisCacheAdapter(
                             redisTemplate,
                             properties.getL2().getInvalidationTopic(),
                             properties.getL2().getTtl(),
                             objectMapper);
-            return new MetricsCollectingCacheProvider(redisAdapter, meterRegistry, "l2");
-        }
 
-        @Bean("l2CacheProvider")
-        @ConditionalOnMissingBean(MeterRegistry.class)
-        public CacheProvider l2CacheProviderWithoutMetrics(
-                @Qualifier("cacheRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-                CachingProperties properties,
-                @Qualifier("cachingObjectMapper") ObjectMapper objectMapper) {
-            log.warn(
-                    "MeterRegistry not found. Granular metrics for L2 cache are disabled. "
-                            + "Add 'spring-boot-starter-actuator' to enable them.");
-            return new RedisCacheAdapter(
-                    redisTemplate,
-                    properties.getL2().getInvalidationTopic(),
-                    properties.getL2().getTtl(),
-                    objectMapper);
-        }
+            if (meterRegistry.isPresent()) {
+                log.info("MeterRegistry found. Enabling granular metrics for L2 cache.");
+                provider = new MetricsCollectingCacheProvider(provider, meterRegistry.get(), "l2");
+            } else {
+                log.warn(
+                        "MeterRegistry not found. Granular metrics for L2 cache are disabled. "
+                                + "Add 'spring-boot-starter-actuator' to enable them.");
+            }
 
-        @Bean("l2CacheProvider")
-        @ConditionalOnProperty(name = "caching.l2.circuit-breaker.enabled", havingValue = "true")
-        public CacheProvider l2CacheProviderWithCircuitBreaker(
-                @Qualifier("l2CacheProvider") CacheProvider delegate,
-                CircuitBreakerRegistry circuitBreakerRegistry,
-                CachingProperties properties) {
+            boolean cbEnabled = properties.getL2().getCircuitBreaker().isEnabled();
+            if (cbEnabled && circuitBreakerRegistry.isPresent()) {
+                log.info("Resilience4j found and circuit breaker is enabled for L2 cache.");
 
-            log.info("L2 Cache Circuit Breaker is enabled.");
+                CachingProperties.CircuitBreakerProperties cbProps = properties.getL2().getCircuitBreaker();
+                CircuitBreakerConfig config =
+                        CircuitBreakerConfig.custom()
+                                .failureRateThreshold(cbProps.getFailureRateThreshold())
+                                .slowCallRateThreshold(cbProps.getSlowCallRateThreshold())
+                                .slowCallDurationThreshold(cbProps.getSlowCallDurationThreshold())
+                                .permittedNumberOfCallsInHalfOpenState(cbProps.getPermittedNumberOfCallsInHalfOpenState())
+                                .waitDurationInOpenState(cbProps.getWaitDurationInOpenState())
+                                .build();
 
-            CachingProperties.CircuitBreakerProperties cbProps = properties.getL2().getCircuitBreaker();
+                CircuitBreaker circuitBreaker = circuitBreakerRegistry.get().circuitBreaker("l2Cache", config);
+                provider = new CircuitBreakerCacheProvider(provider, circuitBreaker);
 
-            CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
-                    .failureRateThreshold(cbProps.getFailureRateThreshold())
-                    .slowCallRateThreshold(cbProps.getSlowCallRateThreshold())
-                    .slowCallDurationThreshold(cbProps.getSlowCallDurationThreshold())
-                    .permittedNumberOfCallsInHalfOpenState(cbProps.getPermittedNumberOfCallsInHalfOpenState())
-                    .waitDurationInOpenState(cbProps.getWaitDurationInOpenState())
-                    .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
-                    .slidingWindowSize(100)
-                    .build();
+            } else if (cbEnabled) {
+                log.warn(
+                        "L2 circuit breaker is enabled in properties but Resilience4j is not on the classpath. "
+                                + "Circuit breaker will be disabled.");
+            }
 
-            CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("l2Cache", circuitBreakerConfig);
-
-            return new CircuitBreakerCacheProvider(delegate, circuitBreaker);
+            return provider;
         }
 
         @Bean
