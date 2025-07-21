@@ -7,6 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * Caffeine cache adapter implementation for L1 (local) caching.
  * Provides high-performance in-memory caching using the Caffeine library.
@@ -137,5 +141,105 @@ public class CaffeineCacheAdapter implements CacheProvider {
     public void evict(String key) {
         log.debug("Invalidating local L1 key: {}", key);
         cache.invalidate(key);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    /**
+     * Retrieves multiple values from the cache with type safety in a single operation.
+     *
+     * <p>This method performs efficient batch retrieval from the underlying Caffeine cache,
+     * leveraging its {@code getAllPresent} method for optimal performance. It ensures type
+     * safety by validating each cached value against the requested type before inclusion
+     * in the result map.</p>
+     *
+     * <p><strong>Type Safety:</strong> Each cached value is checked against the raw class
+     * extracted from the {@link ParameterizedTypeReference}. Values that don't match the
+     * expected type are excluded from the result to prevent {@code ClassCastException}.</p>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Single atomic operation against the Caffeine cache</li>
+     *   <li>Batch retrieval reduces per-key overhead</li>
+     *   <li>Efficient stream processing for type validation</li>
+     * </ul>
+     *
+     * @param <T> the expected type of all cached values
+     * @param keys the set of cache keys to lookup (must not be null, empty sets are allowed)
+     * @param typeRef a reference to the expected type for all values
+     * @return a map containing found keys and their corresponding values cast to type T.
+     *         Missing keys or type-incompatible values will be absent from the map.
+     *         Never returns null, but may return an empty map.
+     * @throws NullPointerException if keys or typeRef is null
+     * @see #get(String, ParameterizedTypeReference)
+     */
+    public <T> Map<String, T> getAll(Set<String> keys, ParameterizedTypeReference<T> typeRef) {
+        Map<String, Object> found = cache.getAllPresent(keys);
+
+        java.lang.reflect.Type requestedType = typeRef.getType();
+        Class<?> rawClass;
+        if (requestedType instanceof Class) {
+            rawClass = (Class<?>) requestedType;
+        } else if (requestedType instanceof java.lang.reflect.ParameterizedType) {
+            rawClass = (Class<?>) ((java.lang.reflect.ParameterizedType) requestedType).getRawType();
+        } else {
+            return Map.of();
+        }
+
+        return found.entrySet().stream()
+                .filter(entry -> rawClass.isInstance(entry.getValue()))
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> (T) entry.getValue()));
+    }
+
+    @Override
+    /**
+     * Stores multiple key-value pairs in the cache in a single operation.
+     *
+     * <p>This method delegates to Caffeine's {@code putAll} method for efficient
+     * batch storage. All entries are stored atomically with the same caching
+     * policies (eviction, expiration) that apply to individual put operations.</p>
+     *
+     * <p><strong>Atomicity:</strong> Caffeine guarantees that all entries in the
+     * map are stored atomically, ensuring consistency during concurrent access.</p>
+     *
+     * <p><strong>Existing Key Behavior:</strong> Keys that already exist in the
+     * cache will have their values overwritten with the new values from the map.</p>
+     *
+     * @param items a map of key-value pairs to store in the cache
+     *              (must not be null, empty maps are allowed but result in no-op)
+     * @throws NullPointerException if items is null or contains null keys
+     * @see #put(String, Object)
+     */
+    public void putAll(Map<String, Object> items) {
+        cache.putAll(items);
+    }
+
+    @Override
+    /**
+     * Removes multiple keys from the cache in a single operation.
+     *
+     * <p>This method performs efficient batch invalidation using Caffeine's
+     * {@code invalidateAll} method. A debug log message is generated to assist
+     * with cache debugging and monitoring in development environments.</p>
+     *
+     * <p><strong>Performance Benefits:</strong></p>
+     * <ul>
+     *   <li>Single atomic operation for multiple key removal</li>
+     *   <li>Reduced overhead compared to individual invalidations</li>
+     *   <li>Efficient batch processing within Caffeine</li>
+     * </ul>
+     *
+     * <p><strong>Missing Key Behavior:</strong> Keys that don't exist in the
+     * cache are ignored without any error. The operation completes successfully
+     * regardless of whether the keys were actually present.</p>
+     *
+     * @param keys the set of cache keys to remove
+     *             (must not be null, empty sets are allowed but result in no-op)
+     * @throws NullPointerException if keys is null or contains null elements
+     * @see #evict(String)
+     */
+    public void evictAll(Set<String> keys) {
+        log.debug("Invalidating local L1 keys: {}", keys);
+        cache.invalidateAll(keys);
     }
 }
