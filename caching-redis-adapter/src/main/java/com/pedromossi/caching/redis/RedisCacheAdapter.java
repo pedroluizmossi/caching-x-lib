@@ -197,21 +197,22 @@ public class RedisCacheAdapter implements CacheProvider {
             return Map.of();
         }
         try {
-            List<byte[]> values = redisTemplate.opsForValue().multiGet(keys);
+            List<String> keyList = new ArrayList<>(keys);
+            List<byte[]> values = redisTemplate.opsForValue().multiGet(keyList);
+
             if (values == null) {
                 return Map.of();
             }
 
             Map<String, T> result = new HashMap<>();
-            List<String> keyList = new ArrayList<>(keys);
-
             for (int i = 0; i < values.size(); i++) {
                 byte[] data = values.get(i);
                 if (data != null) {
+                    String currentKey = keyList.get(i); // Use the key from the ordered list
                     try {
-                        result.put(keyList.get(i), serializer.deserialize(data, typeRef));
+                        result.put(currentKey, serializer.deserialize(data, typeRef));
                     } catch (Exception e) {
-                        log.error("Error converting value for key {}: {}", keyList.get(i), e.getMessage());
+                        log.error("Error converting value for key {}: {}", currentKey, e.getMessage());
                     }
                 }
             }
