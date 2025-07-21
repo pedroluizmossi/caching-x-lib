@@ -46,9 +46,9 @@ Add the Caching-X starter to your `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>com.pedromossi</groupId>
-    <artifactId>caching-spring-boot-starter</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+  <groupId>com.pedromossi</groupId>
+  <artifactId>caching-x</artifactId>
+  <version>0.0.3</version>
 </dependency>
 ```
 
