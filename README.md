@@ -6,6 +6,8 @@
 
 ## Table of Contents
 
+### :books: [Github Wiki](https://github.com/pedroluizmossi/caching-x-lib/wiki)
+
 - [Why Caching-X?](#why-caching-x)
 - [Key Features](#key-features)
 - [Quick Start in 3 Steps](#quick-start-in-3-steps)
