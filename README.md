@@ -1,7 +1,6 @@
 # Caching-X: High-Performance, Resilient, Multi-Level Caching for Java
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/pedroluizmossi/caching-x-lib/build.yml?style=for-the-badge&logo=github)](https://github.com/pedroluizmossi/caching-x-lib/actions)
-[![License](https://img.shields.io/github/license/pedroluizmossi/caching-x-lib?style=for-the-badge)](./LICENSE)
+![image](https://img.shields.io/badge/MIT-green?style=for-the-badge)
 
 **Caching-X** is a powerful, type-safe, and resilient multi-level caching library for modern Java applications. It elegantly combines a lightning-fast L1 in-memory cache with a scalable L2 distributed cache, providing an intelligent, production-ready solution out of the box.
 
@@ -77,11 +76,56 @@ caching:
 
 ### Step 3: Use It in Your Code
 
-Choose the API that fits your needs. Our recommendation is to start with `@CacheX` for its simplicity.
+Caching-X offers two primary APIs. We recommend starting with `@CacheX` for its simplicity and clean separation of concerns.
 
-| Declarative (`@CacheX`) - **Recommended**                                                                                                        | Programmatic (`CacheService`)                                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ```java @Service public class ProductService {     @CacheX(key = "'product:' + #productId")     public Product getProduct(String productId) {         // Result is cached automatically         return productRepository.findById(productId)                                .orElse(null);     }      @CacheX(key = "'product:' + #product.id",              operation = CacheX.Operation.EVICT)     public void updateProduct(Product product) {         // Cache is evicted automatically after         productRepository.save(product);     } } ``` | ```java @Service public class ProductService {     @Autowired     private CacheService cacheService;          public Product getProduct(String productId) {         return cacheService.getOrLoad(             "product:" + productId,             Product.class,             () -> productRepository.findById(productId)                                    .orElse(null)         );     }      public void updateProduct(Product product) {         productRepository.save(product);         cacheService.invalidate(             "product:" + product.getId()         );     } } ``` |
+#### Option A: Declarative Caching with `@CacheX` (Recommended)
+
+This is the cleanest approach for most use cases. It keeps caching logic separate from your business code.
+
+```java
+@Service
+public class ProductService {
+    
+    @CacheX(key = "'product:' + #productId")
+    public Product getProduct(String productId) {
+        // The result is cached automatically by the library.
+        return productRepository.findById(productId).orElse(null);
+    }
+    
+    @CacheX(key = "'product:' + #product.id", operation = CacheX.Operation.EVICT)
+    public void updateProduct(Product product) {
+        // The cache is evicted automatically after this method succeeds.
+        productRepository.save(product);
+    }
+}
+```
+
+#### Option B: Programmatic Caching with `CacheService`
+
+Use the `CacheService` directly when you need more granular control over key generation or the loading logic.
+
+```java
+@Service
+public class ProductService {
+
+    @Autowired
+    private CacheService cacheService;
+    
+    public Product getProduct(String productId) {
+        return cacheService.getOrLoad(
+            "product:" + productId,
+            Product.class,
+            () -> productRepository.findById(productId).orElse(null)
+        );
+    }
+    
+    public void updateProduct(Product product) {
+        productRepository.save(product);
+        cacheService.invalidate("product:" + product.getId());
+    }
+}
+```
+
 
 ## How It Works (Architecture)
 
