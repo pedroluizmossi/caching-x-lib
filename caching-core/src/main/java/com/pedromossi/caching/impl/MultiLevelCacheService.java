@@ -330,44 +330,45 @@ public class MultiLevelCacheService implements CacheService {
     }
 
     @Override
-    /**
-     * Retrieves multiple items from cache layers or loads them from the data source in a single operation.
-     *
-     * <p>This method implements an optimized multi-level caching algorithm for batch operations,
-     * designed to minimize network round trips and improve performance when dealing with multiple
-     * cache keys simultaneously. It follows the same cache-aside pattern as the single-key version
-     * but with batch-optimized operations.</p>
-     *
-     * <p><strong>Batch Lookup Strategy:</strong></p>
-     * <ol>
-     *   <li><strong>L1 Batch Check:</strong> Attempt to retrieve all keys from local cache in one operation</li>
-     *   <li><strong>L2 Batch Check:</strong> For L1 misses, batch query the distributed cache</li>
-     *   <li><strong>Batch Promotion:</strong> Asynchronously promote L2 hits to L1 cache</li>
-     *   <li><strong>Batch Loading:</strong> Execute loader function with remaining missing keys</li>
-     *   <li><strong>Batch Storage:</strong> Asynchronously store loaded values in both cache layers</li>
-     * </ol>
-     *
-     * <p><strong>Performance Optimizations:</strong></p>
-     * <ul>
-     *   <li>Uses LinkedHashSet to preserve key order for deterministic behavior</li>
-     *   <li>Minimizes cache provider calls through bulk operations</li>
-     *   <li>Reduces network overhead for distributed cache access</li>
-     *   <li>Enables efficient data source bulk loading (e.g., SQL IN clauses)</li>
-     * </ul>
-     *
-     * <p><strong>Partial Results Handling:</strong> The method gracefully handles scenarios where
-     * some keys are found in cache layers while others need to be loaded. The final result
-     * contains all successfully retrieved and loaded values.</p>
-     *
-     * @param <T> the type of the cached values
-     * @param keys a set of unique identifiers for the cached items (must not be null)
-     * @param typeRef a reference to the expected type for all values (must not be null)
-     * @param loader a function that receives missing keys and returns a map of key-value pairs (must not be null)
-     * @return a map containing all successfully retrieved keys with their corresponding values
-     * @throws NullPointerException if any parameter is null
-     * @throws RuntimeException if the loader function throws an exception
-     * @see #getOrLoad(String, ParameterizedTypeReference, Supplier)
-     */
+/**
+ * Retrieves multiple items from cache layers or loads them from the data source in a single operation.
+ *
+ * <p>This method implements an optimized multi-level caching algorithm for batch operations,
+ * designed to minimize network round trips and improve performance when dealing with multiple
+ * cache keys simultaneously. It follows the same cache-aside pattern as the single-key version
+ * but with batch-optimized operations.</p>
+ *
+ * <p><strong>Batch Lookup Strategy:</strong></p>
+ * <ol>
+ *   <li><strong>L1 Batch Check:</strong> Attempt to retrieve all keys from local cache in one operation</li>
+ *   <li><strong>L2 Batch Check:</strong> For L1 misses, batch query the distributed cache</li>
+ *   <li><strong>Batch Processing:</strong> Collect items from L2 and data source for single L1 update</li>
+ *   <li><strong>Batch Loading:</strong> Execute loader function with remaining missing keys</li>
+ *   <li><strong>Batch Storage:</strong> Asynchronously store all values in both cache layers efficiently</li>
+ * </ol>
+ *
+ * <p><strong>Performance Optimizations:</strong></p>
+ * <ul>
+ *   <li>Uses LinkedHashSet to preserve key order for deterministic behavior</li>
+ *   <li>Minimizes cache provider calls through bulk operations</li>
+ *   <li>Reduces network overhead for distributed cache access</li>
+ *   <li>Enables efficient data source bulk loading (e.g., SQL IN clauses)</li>
+ *   <li>Combines multiple cache updates into a single asynchronous task</li>
+ * </ul>
+ *
+ * <p><strong>Partial Results Handling:</strong> The method gracefully handles scenarios where
+ * some keys are found in cache layers while others need to be loaded. The final result
+ * contains all successfully retrieved and loaded values.</p>
+ *
+ * @param <T> the type of the cached values
+ * @param keys a set of unique identifiers for the cached items (must not be null)
+ * @param typeRef a reference to the expected type for all values (must not be null)
+ * @param loader a function that receives missing keys and returns a map of key-value pairs (must not be null)
+ * @return a map containing all successfully retrieved keys with their corresponding values
+ * @throws NullPointerException if any parameter is null
+ * @throws RuntimeException if the loader function throws an exception
+ * @see #getOrLoad(String, ParameterizedTypeReference, Supplier)
+ */
     public <T> Map<String, T> getOrLoadAll(
             Set<String> keys,
             ParameterizedTypeReference<T> typeRef,
@@ -376,6 +377,9 @@ public class MultiLevelCacheService implements CacheService {
         final Map<String, T> result = new HashMap<>();
         // Use LinkedHashSet to preserve order of input keys for deterministic cache calls
         final Set<String> missingKeys = new LinkedHashSet<>(keys);
+
+        // Combined map for L1 cache updates (from both L2 promotion and data source)
+        final Map<String, Object> combinedL1Updates = new HashMap<>();
 
         // 1. Try to get all keys from L1 cache
         if (l1Cache != null) {
@@ -401,18 +405,13 @@ public class MultiLevelCacheService implements CacheService {
                 Map<String, T> l2Result = l2Cache.getAll(new LinkedHashSet<>(missingKeys), typeRef);
                 if (!l2Result.isEmpty()) {
                     log.debug("Cache HIT on L2 for keys: {}", l2Result.keySet());
-                    // Add to final result and promote to L1
+                    // Add to final result
                     l2Result.forEach((key, value) -> result.put(key, unwrapNullValue(value)));
                     missingKeys.removeAll(l2Result.keySet());
 
+                    // Add L2 hits to the combined L1 updates map (for promotion)
                     if (l1Cache != null) {
-                        executor.execute(() -> {
-                            try {
-                                l1Cache.putAll(new HashMap<>(l2Result));
-                            } catch (Exception ex) {
-                                log.error("Error promoting values to L1: {}", ex.getMessage(), ex);
-                            }
-                        });
+                        combinedL1Updates.putAll(new HashMap<>(l2Result));
                     }
                 }
             } catch (Exception e) {
@@ -421,6 +420,16 @@ public class MultiLevelCacheService implements CacheService {
         }
 
         if (missingKeys.isEmpty()) {
+            // If we only have L2 promotions, execute them now
+            if (!combinedL1Updates.isEmpty()) {
+                executor.execute(() -> {
+                    try {
+                        l1Cache.putAll(combinedL1Updates);
+                    } catch (Exception ex) {
+                        log.error("Error promoting values to L1: {}", ex.getMessage(), ex);
+                    }
+                });
+            }
             return result;
         }
 
@@ -431,17 +440,43 @@ public class MultiLevelCacheService implements CacheService {
         // Add loaded values to the final result
         result.putAll(loadedFromSource);
 
-        // Populate caches with loaded data
+        // 4. Prepare loaded data for cache storage
         final Map<String, Object> valuesToStore = new HashMap<>();
         missingKeys.forEach(
                 key -> valuesToStore.put(key, wrapNullValue(loadedFromSource.get(key))));
 
-        if (!valuesToStore.isEmpty()) {
-            executor.execute(() -> storeInCaches(valuesToStore));
+        // 5. Combine L2 promotions with newly loaded values for a single L1 update
+        if (l1Cache != null) {
+            combinedL1Updates.putAll(valuesToStore);
+        }
+
+        // 6. Execute a single async task to update both cache layers
+        if (!valuesToStore.isEmpty() || !combinedL1Updates.isEmpty()) {
+
+            executor.execute(() -> {
+                // Update L2 cache with new values from data source
+                if (!valuesToStore.isEmpty() && l2Cache != null) {
+                    try {
+                        l2Cache.putAll(valuesToStore);
+                    } catch (Exception e) {
+                        log.error("Error saving values to L2: {}", e.getMessage(), e);
+                    }
+                }
+
+                // Update L1 cache with combined values (from L2 + data source)
+                if (!combinedL1Updates.isEmpty() && l1Cache != null) {
+                    try {
+                        l1Cache.putAll(combinedL1Updates);
+                    } catch (Exception e) {
+                        log.error("Error saving values to L1: {}", e.getMessage(), e);
+                    }
+                }
+            });
         }
 
         return result;
     }
+
 
     @Override
     /**
