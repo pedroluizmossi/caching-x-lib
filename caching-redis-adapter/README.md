@@ -1,90 +1,62 @@
 # Caching-Redis-Adapter Module
 
-Distributed caching for L2 (shared) cache layer with automatic invalidation across application instances.
+This module provides a resilient and scalable **L2 (distributed) cache** implementation using **Redis**. It is designed for sharing cached data across multiple application instances and ensuring data consistency.
 
-## Features
+## Core Concepts
 
-- **Distributed Caching**: Shared cache across multiple application instances
-- **Automatic Invalidation**: Redis pub/sub for cache coherence
-- **TTL Support**: Configurable time-to-live for all entries
-- **Type-Safe JSON Serialization**: Automatic object serialization/deserialization with ObjectMapper
-- **Type Conversion**: Uses Jackson ObjectMapper for proper type conversion from Redis responses
+-   **L2 Cache**: Acts as a shared, distributed cache layer accessible by all application instances.
+-   **Distributed Invalidation**: Uses Redis Pub/Sub to broadcast invalidation messages, ensuring that when data is changed, all L1 caches across your cluster are cleared consistently.
+-   **Secure Serialization**: Employs a secure-by-default JSON serialization strategy to protect against vulnerabilities.
+-   **Time-to-Live (TTL)**: All entries are stored with a configurable TTL, ensuring automatic cleanup of stale data.
+
+## Dependency
+
+To use this adapter, add the following dependency to your `pom.xml`. It is included by default with the `caching-spring-boot-starter`.
+
+```xml
+<dependency>
+    <groupId>com.pedromossi</groupId>
+    <artifactId>caching-redis-adapter</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
 
 ## Configuration
 
+When using the `caching-spring-boot-starter`, configure the L2 cache via `application.yml`:
+
 ```yaml
-spring:
-  redis:
-    host: localhost
-    port: 6379
-    
 caching:
   l2:
     enabled: true
-    ttl: PT30M
-    invalidationTopic: "cache:invalidation"
+    # Default Time-to-Live for all entries in Redis.
+    ttl: PT1H # ISO-8601 format (1 hour)
+    # The Redis topic used for broadcasting invalidation messages.
+    invalidation-topic: "app:cache:invalidation"
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
 ```
 
-## Type Safety and Serialization
+## Serialization and Security
 
-The Redis adapter uses Jackson's ObjectMapper to ensure type-safe deserialization:
+A major design focus of this library is **security**. This adapter uses a pluggable `CacheSerializer` pattern, with `JacksonCacheSerializer` as the default.
 
-- **Serialization**: Objects are stored as JSON in Redis
-- **Deserialization**: Uses `ParameterizedTypeReference` for proper type conversion
-- **Generic Support**: Handles complex types like `List<User>`, `Map<String, Object>`, etc.
-- **Error Handling**: Graceful fallback when conversion fails
+Our `JacksonCacheSerializer` is configured to be **secure by default**:
+1.  **No Default Typing**: We explicitly **do not** enable Jackson's `activateDefaultTyping`. This is a critical security measure that prevents Remote Code Execution (RCE) attacks where a malicious payload in Redis could trick the JVM into instantiating dangerous classes.
+2.  **Type-Safe Deserialization**: Instead of trusting metadata in the payload, we rely on the `ParameterizedTypeReference` provided by the `CacheService` at runtime. This ensures we only deserialize into the exact, safe type that the application code expects.
 
-```java
-// Example: The adapter properly converts Redis LinkedHashMap back to your type
-User user = l2Cache.get("user:123", new ParameterizedTypeReference<User>(){});
-List<Product> products = l2Cache.get("products", new ParameterizedTypeReference<List<Product>>(){});
-```
+**What this means for you:** You get the benefit of storing complex objects as JSON in Redis without compromising your application's security.
 
-## Constructor Parameters
+## Distributed Invalidation Flow
 
-The RedisCacheAdapter requires the following parameters:
+1.  An application instance calls `cacheService.invalidate("user:123")`.
+2.  The `RedisCacheAdapter` **deletes** the key `user:123` from Redis.
+3.  Simultaneously, it **publishes** the key `user:123` to the configured `invalidation-topic`.
+4.  All other application instances, which are subscribed to this topic, receive the message.
+5.  Upon receiving the message, each instance immediately **evicts** `user:123` from its local **L1 (Caffeine) cache**.
 
-```java
-public RedisCacheAdapter(
-    RedisTemplate<String, Object> redisTemplate,
-    String invalidationTopic,
-    Duration ttl,
-    ObjectMapper objectMapper  // Required for type conversion
-)
-```
-
-## Invalidation Flow
-
-1. **Local Invalidation**: `evict(key)` called on any instance
-2. **Redis Removal**: Key deleted from Redis cache
-3. **Event Publication**: Invalidation message published to topic
-4. **Distributed Notification**: All instances receive the message
-5. **L1 Cleanup**: Each instance evicts the key from local L1 cache
-
-## Usage
-
-```java
-// Custom RedisTemplate (if needed)
-@Bean
-public RedisTemplate<String, Object> cacheRedisTemplate(
-        RedisConnectionFactory connectionFactory) {
-    RedisTemplate<String, Object> template = new RedisTemplate<>();
-    template.setConnectionFactory(connectionFactory);
-    // Custom serialization configuration
-    return template;
-}
-```
-
-## Error Handling
-
-The adapter implements graceful degradation:
-- **Redis Unavailable**: Returns null, doesn't break application
-- **Serialization Errors**: Logged and handled gracefully
-- **Network Timeouts**: Configurable timeout handling
-
-## Best Practices
-
-1. **TTL Configuration**: Set appropriate TTL values for your data
-2. **Connection Pooling**: Configure Redis connection pools properly
-3. **Monitoring**: Monitor Redis memory usage and performance
-4. **Error Handling**: Always handle Redis failures gracefully
+This ensures that a write operation in one instance results in cache consistency across the entire distributed system.

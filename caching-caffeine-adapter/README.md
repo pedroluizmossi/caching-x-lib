@@ -1,52 +1,56 @@
 # Caching-Caffeine-Adapter Module
 
-High-performance in-memory caching for L1 (local) cache layer using Caffeine library.
+This module provides a high-performance **L1 (local) cache** implementation using the [Caffeine](https://github.com/ben-manes/caffeine) library. It is designed for sub-millisecond in-memory access to your most frequently used data.
 
-## Features
+## Core Concepts
 
-- **Size-based Eviction**: Limit cache by number of entries
-- **Time-based Expiration**: TTL and TTI support
-- **Thread Safety**: Concurrent access without external synchronization
-- **Statistics**: Optional performance metrics collection
+-   **L1 Cache**: Serves as the fastest cache layer, residing in the application's local memory.
+-   **High Performance**: Leverages Caffeine's near-optimal eviction policies and concurrent design.
+-   **Time & Size-Based Eviction**: Supports TTL (Time-to-Live), TTI (Time-to-Idle), and maximum size limits to prevent memory exhaustion.
+-   **Seamless Integration**: Auto-configured by the `caching-spring-boot-starter`.
+
+## Dependency
+
+To use this adapter, add the following dependency to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>com.pedromossi</groupId>
+    <artifactId>caching-caffeine-adapter</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
 
 ## Configuration
 
-Uses Caffeine specification strings:
+When using the `caching-spring-boot-starter`, you can configure the L1 cache via your `application.yml` using a Caffeine specification string.
 
 ```yaml
 caching:
   l1:
-    spec: "maximumSize=1000,expireAfterWrite=5m"
+    enabled: true
+    # Configure Caffeine's behavior in a single line.
+    spec: "maximumSize=1000,expireAfterWrite=5m,recordStats"
 ```
 
-### Common Patterns
+### Common Spec Patterns
 
-| Pattern | Description | Example |
-|---------|-------------|---------|
-| Size-based | Evict when size limit reached | `maximumSize=1000` |
-| Write-based TTL | Expire after fixed time from write | `expireAfterWrite=10m` |
-| Access-based TTI | Expire after idle time | `expireAfterAccess=30s` |
-| Combined | Multiple policies | `maximumSize=500,expireAfterWrite=5m` |
-| With Stats | Enable monitoring | `maximumSize=1000,recordStats` |
+| Pattern                  | Description                                        | Example                                     |
+| ------------------------ | -------------------------------------------------- | ------------------------------------------- |
+| **Size-Based**           | Evicts entries when the cache exceeds a set size.  | `maximumSize=1000`                          |
+| **Write-Based TTL**      | Expires entries a fixed duration after they are written. | `expireAfterWrite=10m`                      |
+| **Access-Based TTI**     | Expires entries if they are not accessed for a duration. | `expireAfterAccess=30s`                     |
+| **Enable Statistics**    | Enables metrics collection for monitoring.         | `recordStats`                               |
+| **Combined**             | Combine multiple policies with commas.             | `maximumSize=500,expireAfterWrite=5m`       |
 
-### Time Units
-- `s` or `sec` - seconds
-- `m` or `min` - minutes  
-- `h` or `hour` - hours
-- `d` or `day` - days
-
-## Usage
-
-```java
-// Direct usage
-CacheProvider l1Cache = new CaffeineCacheAdapter("maximumSize=500");
-l1Cache.put("user:123", user);
-User user = l1Cache.get("user:123", new ParameterizedTypeReference<User>(){});
-```
+**Note on Time Units:**
+-   `s`: seconds
+-   `m`: minutes
+-   `h`: hours
+-   `d`: days
 
 ## Best Practices
 
-1. **Size Limits**: Always set maximum size to prevent OOM
-2. **TTL Configuration**: Use appropriate expiration times
-3. **Statistics**: Enable stats in development for tuning
-4. **Key Design**: Use consistent, hierarchical key patterns
+1.  **Always Set a `maximumSize`**: This is critical to prevent `OutOfMemoryError` by putting a hard limit on the cache's memory footprint.
+2.  **Choose the Right Expiration**: Use `expireAfterWrite` for data that becomes stale after a period, and `expireAfterAccess` for session-like data that should be kept only while active.
+3.  **Enable `recordStats` in Production**: The performance overhead is negligible, and the metrics provided (hits, misses, evictions) are invaluable for tuning and monitoring cache effectiveness.
