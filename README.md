@@ -257,12 +257,12 @@ Caching-X is packed with production-ready features that are auto-configured for 
 
 ## Modules
 
-The project is organized into a clean, multi-module structure:
+The project is organized into a clean, multi-module structure. Click on a module to learn more about its specific role and configuration.
 
--   **`caching-core`**: Defines the core interfaces (`CacheService`, `CacheProvider`) and contains the main `MultiLevelCacheService` implementation.
--   **`caching-caffeine-adapter`**: A high-performance L1 cache adapter using Caffeine.
--   **`caching-redis-adapter`**: A resilient L2 cache adapter using Redis.
--   **`caching-spring-boot-starter`**: Provides seamless auto-configuration for Spring Boot applications.
+-   [**`caching-core`**](./caching-core/README.md): Defines the core interfaces (`CacheService`, `CacheProvider`) and contains the main `MultiLevelCacheService` implementation.
+-   [**`caching-caffeine-adapter`**](./caching-caffeine-adapter/README.md): A high-performance L1 cache adapter using Caffeine.
+-   [**`caching-redis-adapter`**](./caching-redis-adapter/README.md): A resilient L2 cache adapter using Redis.
+-   [**`caching-spring-boot-starter`**](./caching-spring-boot-starter/README.md): Provides seamless auto-configuration for Spring Boot applications.
 
 ## Contributing
 
