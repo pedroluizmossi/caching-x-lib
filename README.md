@@ -1,7 +1,7 @@
 # Caching-X: High-Performance, Resilient, Multi-Level Caching for Java
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/pedroluizmossi/caching-x-lib/build.yml?style=for-the-badge&logo=github)](https://github.com/pedroluizmossi/caching-x-lib/actions)
-[![License](https://img.shields.io/github/license/pedroluizmossi/caching-x-lib?style=for-the-badge)](https://github.com/pedroluizmossi/caching-x-lib/blob/master/LICENSE)
+[![License](https://img.shields.io/github/license/pedroluizmossi/caching-x-lib?style=for-the-badge)](./LICENSE)
 
 **Caching-X** is a powerful, type-safe, and resilient multi-level caching library for modern Java applications. It elegantly combines a lightning-fast L1 in-memory cache with a scalable L2 distributed cache, providing an intelligent, production-ready solution out of the box.
 
