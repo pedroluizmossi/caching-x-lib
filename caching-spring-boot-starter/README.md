@@ -91,11 +91,67 @@ caching:
 
 ## Monitoring and Observability
 
-The starter provides a world-class observability experience. Add `spring-boot-starter-actuator` to enable:
+The starter provides comprehensive observability through multiple metrics layers:
 
-1.  **Granular Cache Metrics**: Detailed metrics for hits, misses, latency, and errors for both L1 and L2 caches.
-2.  **Native Caffeine Stats**: If you add `recordStats` to your L1 spec, you get deep insights into Caffeine's internal state (evictions, size, etc.).
-3.  **`/actuator/cachex` Endpoint**: An interactive endpoint to inspect and evict cache keys in real-time.
-  -   `GET /actuator/cachex/{key}`: See if a key exists in L1 or L2.
-  -   `DELETE /actuator/cachex/{key}`: Evict a key from all layers.
-4.  **Circuit Breaker Metrics**: If enabled, see the state, failure rates, and latencies of the circuit breaker at `/actuator/circuitbreakers`.
+### Automatic Metrics Configuration
+
+When `spring-boot-starter-actuator` is present, the starter automatically enables metrics collection:
+
+1. **L1 Cache Native Metrics**: When your Caffeine spec includes `recordStats`, native Caffeine metrics are automatically registered with Micrometer
+2. **Custom Metrics Wrapper**: Both L1 and L2 cache providers are wrapped with `MetricsCollectingCacheProvider` for granular operation tracking
+3. **Circuit Breaker Metrics**: When Resilience4j is enabled, circuit breaker state and performance metrics are collected
+
+### Available Metrics
+
+**Caffeine Native Metrics** (when `recordStats` is in L1 spec):
+```yaml
+cache_requests_total{cache="l1Cache", result="hit|miss"}
+cache_evictions_total{cache="l1Cache"}
+cache_eviction_weight_total{cache="l1Cache"}
+cache_load_duration_seconds{cache="l1Cache"}
+```
+
+**Custom Cache Operation Metrics**:
+```yaml
+cache_operations_total{cache="l1|l2", operation="get|put|invalidate", result="hit|miss|error"}
+cache_operation_duration_seconds{cache="l1|l2", operation="get|put|invalidate"}
+```
+
+**Circuit Breaker Metrics** (when enabled):
+```yaml
+resilience4j_circuitbreaker_calls_total{name="l2Cache", kind="successful|failed|ignored"}
+resilience4j_circuitbreaker_state{name="l2Cache", state="closed|open|half_open"}
+```
+
+### Actuator Endpoints
+
+- **`/actuator/cachex`**: Interactive endpoint to inspect and manage cache keys
+  - `GET /actuator/cachex/{key}`: Check if a key exists in L1 or L2
+  - `DELETE /actuator/cachex/{key}`: Evict a key from all cache layers
+- **`/actuator/metrics`**: Standard Micrometer metrics endpoint with all cache metrics
+- **`/actuator/circuitbreakers`**: Circuit breaker state and statistics (when enabled)
+
+### Enabling Metrics
+
+To enable comprehensive metrics collection:
+
+```yaml
+caching:
+  l1:
+    spec: "maximumSize=1000,expireAfterWrite=5m,recordStats"  # Include recordStats for native metrics
+  l2:
+    circuitBreaker:
+      enabled: true  # Enable circuit breaker metrics
+```
+
+Add these dependencies:
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+<dependency>
+    <groupId>io.micrometer</groupId>
+    <artifactId>micrometer-registry-prometheus</artifactId> <!-- or your preferred registry -->
+</dependency>
+```

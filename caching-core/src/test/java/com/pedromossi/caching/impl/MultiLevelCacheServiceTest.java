@@ -331,9 +331,16 @@ class MultiLevelCacheServiceTest {
 
         // 3. Verify cache population
         await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1Cache).putAll(eq(Map.of("key2", "value2_L2")));
+            // The implementation now combines all L1 updates into a single putAll call for efficiency
+            Map<String, Object> expectedL1Updates = Map.of(
+                "key2", "value2_L2",      // Promoted from L2
+                "key3", "value3_Source",  // Loaded from source
+                "key4", "value4_Source"   // Loaded from source
+            );
+            verify(l1Cache).putAll(eq(expectedL1Updates));
+
+            // L2 cache should only receive the data that was loaded from source
             Map<String, Object> sourceDataToStore = Map.of("key3", "value3_Source", "key4", "value4_Source");
-            verify(l1Cache).putAll(eq(sourceDataToStore));
             verify(l2Cache).putAll(eq(sourceDataToStore));
         });
     }
