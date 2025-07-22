@@ -6,7 +6,7 @@
 
     <groupId>com.pedromossi</groupId>
     <artifactId>caching-x</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.4</version>
     <packaging>pom</packaging>
     <name>Caching X Library :: Parent</name>
     <description>
@@ -49,6 +49,7 @@
         <module>caching-core</module>
         <module>caching-caffeine-adapter</module>
         <module>caching-redis-adapter</module>
+        <module>caching-x-processor</module>
         <module>caching-reporter</module>
         <module>caching-spring-boot-starter</module>
     </modules>

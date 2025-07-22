@@ -9,7 +9,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -45,6 +48,14 @@ public class MultiLevelCacheService implements CacheService {
 
     /** Logger instance for this class. */
     private static final Logger log = LoggerFactory.getLogger(MultiLevelCacheService.class);
+
+    /**
+     * Map to track ongoing loading operations for cache keys.
+     *
+     * <p>This map is used to prevent multiple concurrent loads for the same key,
+     * ensuring that only one data source query is executed per key at a time.</p>
+     */
+    private final ConcurrentHashMap<String, Future<Object>> loadingInProgress = new ConcurrentHashMap<>();
 
     /**
      * Sentinel object to represent null values in cache layers.
@@ -215,15 +226,35 @@ public class MultiLevelCacheService implements CacheService {
             }
         }
 
-        // Complete Cache Miss: Load from original data source
-        log.debug("Complete cache MISS for key: {}. Executing loader.", key);
-        T valueFromSource = loader.get();
+        while (true) {
+            Future<Object> future = loadingInProgress.get(key);
+            if (future == null) {
+                FutureTask<Object> newTask = new FutureTask<>(() -> {
+                    log.debug("Complete cache MISS for key: {}. Executing loader.", key);
+                    T valueFromSource = loader.get();
+                    Object valueToStore = wrapNullValue(valueFromSource);
+                    executor.execute(() -> storeInCaches(key, valueToStore));
+                    return valueToStore;
+                });
 
-        // Asynchronously store the result in cache layers for future requests
-        final Object valueToStore = wrapNullValue(valueFromSource);
-        executor.execute(() -> storeInCaches(key, valueToStore));
+                future = loadingInProgress.putIfAbsent(key, newTask);
+                if (future == null) {
+                    future = newTask;
+                    newTask.run();
+                }
+            }
 
-        return valueFromSource;
+            try {
+                Object result = future.get();
+                return unwrapNullValue(result);
+            } catch (Exception e) {
+                loadingInProgress.remove(key, future);
+                throw new RuntimeException("Failed to load value for key: " + key, e);
+            } finally {
+                loadingInProgress.remove(key, future);
+            }
+        }
+
     }
 
     /**

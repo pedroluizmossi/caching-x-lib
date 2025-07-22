@@ -203,7 +203,6 @@ sequenceDiagram
     OtherApp->>PubSub: Listens to topic
     PubSub-->>OtherApp: Receives message("key")
     OtherApp->>OtherApp: Invalidates local L1 for "key"```
-```
 </details>
 
 ## Using the API: A Deeper Look
@@ -231,6 +230,7 @@ sequenceDiagram
 // Static keys
 @CacheX(key = "'global:settings'")
 ```
+</details>
 
 ### Programmatic Caching with `CacheService`
 
@@ -265,6 +265,7 @@ The project is organized into a clean, multi-module structure. Click on a module
 -   [**`caching-caffeine-adapter`**](./caching-caffeine-adapter/README.md): A high-performance L1 cache adapter using Caffeine.
 -   [**`caching-redis-adapter`**](./caching-redis-adapter/README.md): A resilient L2 cache adapter using Redis.
 -   [**`caching-spring-boot-starter`**](./caching-spring-boot-starter/README.md): Provides seamless auto-configuration for Spring Boot applications.
+-   [**`caching-x-processor`**](./caching-x-processor/README.md): Compile-time annotation processor that validates `@CacheX` usage and provides early error detection.
 
 ## Contributing
 
