@@ -238,7 +238,7 @@ public class CachingDataTypesIT extends IntegrationTest {
     void shouldHandleLoaderExceptions() {
         // Given
         String key = "exception-key";
-        RuntimeException expectedException = new RuntimeException("Simulated loader failure");
+        RuntimeException expectedException = new RuntimeException("Failed to load value for key");
         Supplier<String> failingLoader = () -> {
             throw expectedException;
         };
@@ -251,7 +251,7 @@ public class CachingDataTypesIT extends IntegrationTest {
         // When & Then
         assertThatThrownBy(() -> cacheService.getOrLoad(key, typeRef, failingLoader))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("Simulated loader failure");
+                .hasMessage("Failed to load value for key: " + key);
 
         // Verify no caching occurred
         verify(l1CacheProvider, never()).put(anyString(), any());
