@@ -1,6 +1,12 @@
 # Caching-X: High-Performance, Resilient, Multi-Level Caching for Java
 
-![image](https://img.shields.io/badge/MIT-green?style=for-the-badge)
+![image](https://img.shields.io/badge/MIT-green?style=for-the-badge)  
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=pedroluizmossi_caching-x-lib&metric=coverage)](https://sonarcloud.io/summary/new_code?id=pedroluizmossi_caching-x-lib)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=pedroluizmossi_caching-x-lib&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=pedroluizmossi_caching-x-lib)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=pedroluizmossi_caching-x-lib&metric=bugs)](https://sonarcloud.io/summary/new_code?id=pedroluizmossi_caching-x-lib)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=pedroluizmossi_caching-x-lib&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=pedroluizmossi_caching-x-lib)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=pedroluizmossi_caching-x-lib&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=pedroluizmossi_caching-x-lib)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=pedroluizmossi_caching-x-lib&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=pedroluizmossi_caching-x-lib)
 
 **Caching-X** is a powerful, type-safe, and resilient multi-level caching library for modern Java applications. It elegantly combines a lightning-fast L1 in-memory cache with a scalable L2 distributed cache, providing an intelligent, production-ready solution out of the box.
 
