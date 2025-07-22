@@ -1,300 +1,240 @@
 package com.pedromossi.caching.caffeine;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.core.ParameterizedTypeReference;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.ParameterizedTypeReference;
 
 /**
- * Unit tests for the {@link CaffeineCacheAdapter} class.
- *
- * <p>This test class verifies the correct behavior of the Caffeine cache adapter implementation,
- * including basic and batch cache operations, type safety, and edge cases. The tests ensure that
- * the adapter properly handles different data types, cache eviction, and type checking mechanisms.
- * </p>
- *
- * <p>Test coverage includes:</p>
- * <ul>
- *   <li>Basic cache operations (put/get)</li>
- *   <li>Batch cache operations (putAll/getAll/evictAll)</li>
- *   <li>Cache eviction functionality</li>
- *   <li>Type safety validation</li>
- *   <li>Handling of different data types</li>
- *   <li>Value overwriting behavior</li>
- * </ul>
- *
- * @see CaffeineCacheAdapter
- * @since 1.0.0
+ * Unit tests for the {@link CaffeineCacheAdapter} class, verifying basic and batch operations,
+ * type safety, and edge cases.
  */
+@DisplayName("CaffeineCacheAdapter")
 class CaffeineCacheAdapterTest {
 
-    /** The cache adapter instance under test. */
     private CaffeineCacheAdapter cacheAdapter;
 
-    /**
-     * Sets up the test environment before each test method execution.
-     *
-     * <p>Initializes a new {@link CaffeineCacheAdapter} instance with a simple configuration suitable
-     * for testing. The configuration includes:
-     * </p>
-     * <ul>
-     *   <li>Maximum size of 100 entries</li>
-     *   <li>Expiration after write of 1 minute</li>
-     * </ul>
-     */
     @BeforeEach
     void setUp() {
-        // Initialize cache with simple specification for testing
         cacheAdapter = new CaffeineCacheAdapter("maximumSize=100,expireAfterWrite=1m");
     }
 
-    /**
-     * Tests that a value can be successfully retrieved after being stored in the cache.
-     *
-     * <p>This test verifies the basic put/get functionality of the cache adapter. It stores a string
-     * value and then retrieves it using the correct type reference, ensuring that the cached value
-     * matches the original value.
-     * </p>
-     */
-    @Test
-    void shouldGetValueAfterPut() {
-        // Given
-        String key = "user:1";
-        String value = "John Doe";
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+    @Nested
+    @DisplayName("Single Key Operations")
+    class SingleKeyOperations {
 
-        // When
-        cacheAdapter.put(key, value);
-        String cachedValue = cacheAdapter.get(key, typeRef);
+        @Test
+        @DisplayName("get() should return value when key exists")
+        void get_shouldReturnValue_whenKeyExists() {
+            cacheAdapter.put("user:1", "John Doe");
+            String result = cacheAdapter.get("user:1", new ParameterizedTypeReference<>() {});
+            assertThat(result).isEqualTo("John Doe");
+        }
 
-        // Then
-        assertThat(cachedValue).isNotNull().isEqualTo(value);
+        @Test
+        @DisplayName("get() should return null when key does not exist")
+        void get_shouldReturnNull_whenKeyDoesNotExist() {
+            String result = cacheAdapter.get("non-existent", new ParameterizedTypeReference<>() {});
+            assertThat(result).isNull();
+        }
+
+        @Test
+        @DisplayName("get() should return null when requested type is incorrect")
+        void get_shouldReturnNull_whenRequestedTypeIsIncorrect() {
+            cacheAdapter.put("user:3", 123); // Stored as Integer
+            String result = cacheAdapter.get("user:3", new ParameterizedTypeReference<String>() {});
+            assertThat(result).isNull();
+        }
+
+        @Test
+        @DisplayName("get() should return null when using unsupported type reference")
+        void get_shouldReturnNull_whenUsingUnsupportedTypeReference() {
+            cacheAdapter.put("test:key", "test-value");
+
+            // Criar um tipo de referência personalizado que não é uma classe nem um tipo parametrizado
+            ParameterizedTypeReference<?> unsupportedTypeRef = new ParameterizedTypeReference<Object>() {
+                @Override
+                public java.lang.reflect.Type getType() {
+                    // Usar um tipo personalizado que não é Class nem ParameterizedType
+                    return new java.lang.reflect.WildcardType() {
+                        @Override
+                        public java.lang.reflect.Type[] getUpperBounds() {
+                            return new java.lang.reflect.Type[0];
+                        }
+
+                        @Override
+                        public java.lang.reflect.Type[] getLowerBounds() {
+                            return new java.lang.reflect.Type[0];
+                        }
+                    };
+                }
+            };
+
+            // O método deve retornar null para um tipo não suportado
+            Object result = cacheAdapter.get("test:key", unsupportedTypeRef);
+            assertThat(result).isNull();
+        }
+
+        @Test
+        @DisplayName("put() should overwrite an existing value")
+        void put_shouldOverwriteExistingValue() {
+            String key = "user:4";
+            cacheAdapter.put(key, "Initial Value");
+            cacheAdapter.put(key, "Updated Value");
+            String result = cacheAdapter.get(key, new ParameterizedTypeReference<>() {});
+            assertThat(result).isEqualTo("Updated Value");
+        }
+
+        @Test
+        @DisplayName("evict() should remove a value from the cache")
+        void evict_shouldRemoveValueFromCache() {
+            String key = "user:2";
+            cacheAdapter.put(key, "Jane Smith");
+            cacheAdapter.evict(key);
+            String result = cacheAdapter.get(key, new ParameterizedTypeReference<>() {});
+            assertThat(result).isNull();
+        }
     }
 
-    /**
-     * Tests that the cache returns null for keys that don't exist.
-     *
-     * <p>This test ensures that the cache adapter properly handles requests for non-existent keys by
-     * returning null instead of throwing exceptions or returning unexpected values.
-     * </p>
-     */
-    @Test
-    void shouldReturnNullForNonExistentKey() {
-        // Given
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+    @Nested
+    @DisplayName("Batch Operations")
+    class BatchOperations {
 
-        // When
-        String cachedValue = cacheAdapter.get("non-existent-key", typeRef);
+        @Test
+        @DisplayName("putAll() should store all items from a map")
+        void putAll_shouldStoreAllItems() {
+            Map<String, Object> items = Map.of("p:1", "Laptop", "p:2", "Mouse", "cfg:t", 5000);
+            cacheAdapter.putAll(items);
+            assertThat(cacheAdapter.get("p:1", new ParameterizedTypeReference<String>() {})).isEqualTo("Laptop");
+            assertThat(cacheAdapter.get("cfg:t", new ParameterizedTypeReference<Integer>() {})).isEqualTo(5000);
+        }
 
-        // Then
-        assertThat(cachedValue).isNull();
+        @Test
+        @DisplayName("getAll() should return found items and filter by type")
+        void getAll_shouldReturnFoundItemsAndFilterByTypes() {
+            cacheAdapter.put("user:1", "Alice");
+            cacheAdapter.put("user:2", "Bob");
+            cacheAdapter.put("user:count", 2); // Type mismatch
+
+            Set<String> keys = Set.of("user:1", "user:2", "user:count", "user:nonexistent");
+            Map<String, String> result = cacheAdapter.getAll(keys, new ParameterizedTypeReference<>() {});
+
+            assertThat(result)
+                    .hasSize(2)
+                    .containsEntry("user:1", "Alice")
+                    .containsEntry("user:2", "Bob");
+        }
+
+        @Test
+        @DisplayName("evictAll() should remove all specified keys")
+        void evictAll_shouldRemoveSpecifiedKeys() {
+            cacheAdapter.put("item:1", "A");
+            cacheAdapter.put("item:2", "B");
+            cacheAdapter.put("item:3", "C"); // Should remain
+
+            cacheAdapter.evictAll(Set.of("item:1", "item:2", "item:nonexistent"));
+
+            assertThat(cacheAdapter.get("item:1", new ParameterizedTypeReference<String>() {})).isNull();
+            assertThat(cacheAdapter.get("item:2", new ParameterizedTypeReference<String>() {})).isNull();
+            assertThat(cacheAdapter.get("item:3", new ParameterizedTypeReference<String>() {})).isEqualTo("C");
+        }
     }
 
-    /**
-     * Tests that values become unavailable after explicit cache eviction.
-     *
-     * <p>This test verifies the eviction functionality by storing a value, explicitly evicting it,
-     * and then confirming that subsequent retrieval attempts return null.
-     * </p>
-     */
-    @Test
-    void shouldReturnNullAfterEvict() {
-        // Given
-        String key = "user:2";
-        String value = "Jane Smith";
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
-        cacheAdapter.put(key, value);
+    @Nested
+    @DisplayName("Advanced Features")
+    class AdvancedFeatures {
 
-        // When
-        cacheAdapter.evict(key);
-        String cachedValue = cacheAdapter.get(key, typeRef);
-
-        // Then
-        assertThat(cachedValue).isNull();
+        @Test
+        @DisplayName("getNativeCache() should return the underlying Caffeine cache")
+        void getNativeCache_shouldReturnUnderlyingCache() {
+            assertThat(cacheAdapter.getNativeCache()).isNotNull();
+            cacheAdapter.put("testKey", "testValue");
+            assertThat(cacheAdapter.getNativeCache().getIfPresent("testKey")).isEqualTo("testValue");
+        }
     }
 
-    /**
-     * Tests type safety by verifying null return when requesting wrong type.
-     *
-     * <p>This test ensures that the cache adapter's type safety mechanism works correctly. When a
-     * value of one type is stored but retrieved using a different type reference, the adapter should
-     * return null to prevent ClassCastException.
-     * </p>
-     */
-    @Test
-    void shouldReturnNullIfTypeIsIncorrect() {
-        // Given
-        String key = "user:3";
-        Integer value = 123; // Store an integer
-        ParameterizedTypeReference<String> stringTypeRef = new ParameterizedTypeReference<String>() {};
-        cacheAdapter.put(key, value);
+    @Nested
+    @DisplayName("Type Handling")
+    class TypeHandling {
 
-        // When
-        // Attempt to retrieve as String
-        String cachedValue = cacheAdapter.get(key, stringTypeRef);
+        @Test
+        @DisplayName("should handle different simple types like Integer and Boolean")
+        void shouldHandleDifferentSimpleTypes() {
+            // Integer
+            cacheAdapter.put("number:1", 42);
+            Integer numResult = cacheAdapter.get("number:1", new ParameterizedTypeReference<>() {});
+            assertThat(numResult).isEqualTo(42);
 
-        // Then
-        assertThat(cachedValue).isNull();
-    }
+            // Boolean
+            cacheAdapter.put("flag:1", true);
+            Boolean boolResult = cacheAdapter.get("flag:1", new ParameterizedTypeReference<>() {});
+            assertThat(boolResult).isTrue();
+        }
 
-    /**
-     * Tests that the cache properly handles Integer values.
-     *
-     * <p>This test verifies that the cache adapter can store and retrieve Integer values correctly,
-     * ensuring that numeric types are properly handled by the caching mechanism.
-     * </p>
-     */
-    @Test
-    void shouldHandleIntegerValues() {
-        // Given
-        String key = "number:1";
-        Integer value = 42;
-        ParameterizedTypeReference<Integer> typeRef = new ParameterizedTypeReference<Integer>() {};
+        @Test
+        @DisplayName("should handle complex generic types like List<String>")
+        void shouldHandleComplexGenericTypes() {
+            var list1 = List.of("a", "b");
+            cacheAdapter.put("list:1", list1);
 
-        // When
-        cacheAdapter.put(key, value);
-        Integer cachedValue = cacheAdapter.get(key, typeRef);
+            var typeRef = new ParameterizedTypeReference<List<String>>() {};
+            List<String> result = cacheAdapter.get("list:1", typeRef);
 
-        // Then
-        assertThat(cachedValue).isNotNull().isEqualTo(value);
-    }
+            assertThat(result).isEqualTo(list1);
+        }
 
-    /**
-     * Tests that the cache properly handles Boolean values.
-     *
-     * <p>This test verifies that the cache adapter can store and retrieve Boolean values correctly,
-     * ensuring that boolean types are properly handled by the caching mechanism.
-     * </p>
-     */
-    @Test
-    void shouldHandleBooleanValues() {
-        // Given
-        String key = "flag:1";
-        Boolean value = true;
-        ParameterizedTypeReference<Boolean> typeRef = new ParameterizedTypeReference<Boolean>() {};
+        @Test
+        @DisplayName("getAll() should handle complex generic types")
+        void getAll_shouldHandleComplexGenericTypes() {
+            var list1 = List.of("a", "b");
+            var list2 = List.of("c", "d");
+            cacheAdapter.put("list:1", list1);
+            cacheAdapter.put("list:2", list2);
 
-        // When
-        cacheAdapter.put(key, value);
-        Boolean cachedValue = cacheAdapter.get(key, typeRef);
+            var typeRef = new ParameterizedTypeReference<List<String>>() {};
+            Map<String, List<String>> result = cacheAdapter.getAll(Set.of("list:1", "list:2"), typeRef);
 
-        // Then
-        assertThat(cachedValue).isNotNull().isEqualTo(value);
-    }
+            assertThat(result)
+                    .hasSize(2)
+                    .containsEntry("list:1", list1)
+                    .containsEntry("list:2", list2);
+        }
 
-    /**
-     * Tests that existing cache values can be overwritten with new values.
-     *
-     * <p>This test verifies the cache's ability to update existing entries. It stores an initial
-     * value, retrieves it to confirm storage, then overwrites it with a new value and verifies the
-     * update was successful.
-     * </p>
-     */
-    @Test
-    void shouldOverwriteExistingValue() {
-        // Given
-        String key = "user:4";
-        String initialValue = "Initial Value";
-        String updatedValue = "Updated Value";
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+        @Test
+        @DisplayName("getAll() should return empty map when using unsupported type reference")
+        void getAll_shouldReturnEmptyMap_whenUsingUnsupportedTypeReference() {
+            // Adicionar alguns valores ao cache
+            cacheAdapter.put("key1", "value1");
+            cacheAdapter.put("key2", "value2");
 
-        // When
-        cacheAdapter.put(key, initialValue);
-        String cachedInitial = cacheAdapter.get(key, typeRef);
+            // Criar um tipo de referência personalizado que não é uma classe nem um tipo parametrizado
+            ParameterizedTypeReference<?> unsupportedTypeRef = new ParameterizedTypeReference<Object>() {
+                @Override
+                public java.lang.reflect.Type getType() {
+                    // Usar um tipo personalizado que não é Class nem ParameterizedType
+                    return new java.lang.reflect.WildcardType() {
+                        @Override
+                        public java.lang.reflect.Type[] getUpperBounds() {
+                            return new java.lang.reflect.Type[0];
+                        }
 
-        cacheAdapter.put(key, updatedValue);
-        String cachedUpdated = cacheAdapter.get(key, typeRef);
+                        @Override
+                        public java.lang.reflect.Type[] getLowerBounds() {
+                            return new java.lang.reflect.Type[0];
+                        }
+                    };
+                }
+            };
 
-        // Then
-        assertThat(cachedInitial).isEqualTo(initialValue);
-        assertThat(cachedUpdated).isEqualTo(updatedValue);
-    }
-
-    // --- Batch Operation Tests ---
-
-    @Test
-    @DisplayName("shouldPutAllItems")
-    void shouldPutAllItems() {
-        // Given
-        Map<String, Object> items =
-                Map.of(
-                        "product:1", "Laptop", "product:2", "Mouse", "config:timeout", 5000);
-        var stringTypeRef = new ParameterizedTypeReference<String>() {};
-        var intTypeRef = new ParameterizedTypeReference<Integer>() {};
-
-        // When
-        cacheAdapter.putAll(items);
-
-        // Then
-        assertThat(cacheAdapter.get("product:1", stringTypeRef)).isEqualTo("Laptop");
-        assertThat(cacheAdapter.get("product:2", stringTypeRef)).isEqualTo("Mouse");
-        assertThat(cacheAdapter.get("config:timeout", intTypeRef)).isEqualTo(5000);
-    }
-
-    @Test
-    @DisplayName("shouldGetAllPresentValuesAndFilterTypeMismatches")
-    void shouldGetAllPresentValuesAndFilterTypeMismatches() {
-        // Given
-        cacheAdapter.put("user:1", "Alice");
-        cacheAdapter.put("user:2", "Bob");
-        cacheAdapter.put("user:count", 2); // This one has a different type
-        Set<String> keysToFetch = Set.of("user:1", "user:2", "user:count", "user:nonexistent");
-        var stringTypeRef = new ParameterizedTypeReference<String>() {};
-
-        // When
-        Map<String, String> foundItems = cacheAdapter.getAll(keysToFetch, stringTypeRef);
-
-        // Then
-        assertThat(foundItems)
-                .hasSize(2)
-                .containsEntry("user:1", "Alice")
-                .containsEntry("user:2", "Bob")
-                .doesNotContainKey("user:count") // Filtered due to type mismatch
-                .doesNotContainKey("user:nonexistent"); // Not present
-    }
-
-    @Test
-    @DisplayName("shouldEvictAllSpecifiedKeys")
-    void shouldEvictAllSpecifiedKeys() {
-        // Given
-        cacheAdapter.put("item:1", "A");
-        cacheAdapter.put("item:2", "B");
-        cacheAdapter.put("item:3", "C"); // This one will remain
-        Set<String> keysToEvict = Set.of("item:1", "item:2", "item:nonexistent");
-        var typeRef = new ParameterizedTypeReference<String>() {};
-
-        // When
-        cacheAdapter.evictAll(keysToEvict);
-
-        // Then
-        assertThat(cacheAdapter.get("item:1", typeRef)).isNull();
-        assertThat(cacheAdapter.get("item:2", typeRef)).isNull();
-        assertThat(cacheAdapter.get("item:3", typeRef)).isEqualTo("C");
-    }
-
-    @Test
-    @DisplayName("getAll should handle complex generic types")
-    void getAllShouldHandleComplexGenericTypes() {
-        // Given
-        var list1 = List.of("a", "b");
-        var list2 = List.of("c", "d");
-        cacheAdapter.put("list:1", list1);
-        cacheAdapter.put("list:2", list2);
-        Set<String> keys = Set.of("list:1", "list:2");
-        var typeRef = new ParameterizedTypeReference<List<String>>() {};
-
-        // When
-        Map<String, List<String>> result = cacheAdapter.getAll(keys, typeRef);
-
-        // Then
-        assertThat(result)
-                .hasSize(2)
-                .containsEntry("list:1", list1)
-                .containsEntry("list:2", list2);
+            // O método deve retornar um mapa vazio para um tipo não suportado
+            Map<?, ?> result = cacheAdapter.getAll(Set.of("key1", "key2"), unsupportedTypeRef);
+            assertThat(result).isEmpty();
+        }
     }
 }
