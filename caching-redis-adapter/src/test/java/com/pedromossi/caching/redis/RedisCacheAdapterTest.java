@@ -404,14 +404,27 @@ class RedisCacheAdapterTest {
     @Test
     @DisplayName("getAll should handle individual deserialization errors gracefully")
     void getAll_shouldHandleIndividualDeserializationErrors() {
-        // Given
-        Set<String> keys = Set.of("key1", "key2", "key3");
-        byte[] data1 = "valid".getBytes();
+        // Given - Use LinkedHashSet to ensure predictable iteration order
+        Set<String> keys = new LinkedHashSet<>(Arrays.asList("key1", "key2", "key3"));
+        byte[] data1 = "valid1".getBytes();
         byte[] data2 = "invalid".getBytes();
-        byte[] data3 = "valid".getBytes();
+        byte[] data3 = "valid3".getBytes();
 
         when(valueOperations.multiGet(any(List.class)))
-                .thenReturn(Arrays.asList(data1, data2, data3));
+                .thenAnswer(invocation -> {
+                    List<String> requestedKeys = invocation.getArgument(0);
+                    // Return values in the same order as requested keys
+                    List<byte[]> results = new ArrayList<>();
+                    for (String key : requestedKeys) {
+                        switch (key) {
+                            case "key1" -> results.add(data1);
+                            case "key2" -> results.add(data2);
+                            case "key3" -> results.add(data3);
+                            default -> results.add(null);
+                        }
+                    }
+                    return results;
+                });
 
         var typeRef = new ParameterizedTypeReference<String>() {};
         when(cacheSerializer.deserialize(data1, typeRef)).thenReturn("Value 1");
@@ -424,6 +437,8 @@ class RedisCacheAdapterTest {
 
         // Then
         assertThat(result).hasSize(2);
+        assertThat(result).containsEntry("key1", "Value 1");
+        assertThat(result).containsEntry("key3", "Value 3");
         assertThat(result).doesNotContainKey("key2");
         verify(cacheSerializer, times(3)).deserialize(any(), eq(typeRef));
     }
