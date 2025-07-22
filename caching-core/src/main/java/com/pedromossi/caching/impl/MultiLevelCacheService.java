@@ -563,34 +563,4 @@ public class MultiLevelCacheService implements CacheService {
             }
         });
     }
-
-    /**
-     * Stores multiple values in all available cache layers asynchronously.
-     *
-     * <p>This internal method handles batch cache population after multiple values
-     * are loaded from the original data source. It stores all values in both L1 and L2
-     * caches to optimize future batch access patterns.</p>
-     *
-     * <p><strong>Storage Strategy:</strong> Values are stored in L2 (distributed) cache
-     * first to enable data sharing across instances, followed by L1 (local) cache
-     * for immediate future access optimization.</p>
-     *
-     * @param items a map of key-value pairs to store (must not be null)
-     */
-    private void storeInCaches(Map<String, Object> items) {
-        if (l2Cache != null) {
-            try {
-                l2Cache.putAll(items);
-            } catch (Exception e) {
-                log.error("Error saving values to L2: {}", e.getMessage(), e);
-            }
-        }
-        if (l1Cache != null) {
-            try {
-                l1Cache.putAll(items);
-            } catch (Exception e) {
-                log.error("Error saving values to L1: {}", e.getMessage(), e);
-            }
-        }
-    }
 }
