@@ -1,11 +1,7 @@
 package com.pedromossi.caching.micrometer;
 
 import com.pedromossi.caching.CacheProvider;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.*;
 import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.Map;

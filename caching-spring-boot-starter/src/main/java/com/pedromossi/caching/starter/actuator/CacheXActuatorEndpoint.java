@@ -2,9 +2,6 @@ package com.pedromossi.caching.starter.actuator;
 
 import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.actuate.endpoint.annotation.DeleteOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
@@ -12,6 +9,10 @@ import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 
 @Component
 @Endpoint(id = "cachex")

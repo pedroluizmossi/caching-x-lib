@@ -1,6 +1,7 @@
 package com.pedromossi.caching.starter;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+
 import java.time.Duration;
 
 /**

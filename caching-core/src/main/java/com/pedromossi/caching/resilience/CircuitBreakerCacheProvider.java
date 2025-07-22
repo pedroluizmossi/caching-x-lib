@@ -2,13 +2,13 @@ package com.pedromossi.caching.resilience;
 
 import com.pedromossi.caching.CacheProvider;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
 
 /**
  * A resilient cache provider decorator that implements circuit breaker pattern for cache operations.

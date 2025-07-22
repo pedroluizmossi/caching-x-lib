@@ -1,6 +1,5 @@
 package com.pedromossi.caching.starter;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.UUID;

@@ -6,8 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.pedromossi.caching.serializer.CacheSerializer;
 import com.pedromossi.caching.serializer.SerializationException;
-import java.io.IOException;
 import org.springframework.core.ParameterizedTypeReference;
+
+import java.io.IOException;
 
 /**
  * Jackson-based implementation of {@link CacheSerializer} for JSON serialization.
