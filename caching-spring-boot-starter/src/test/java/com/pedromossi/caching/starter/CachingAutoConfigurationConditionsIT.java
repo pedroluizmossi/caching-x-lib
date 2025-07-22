@@ -1,11 +1,8 @@
-// Crie este novo arquivo em: caching-spring-boot-starter/src/test/java/...
-
 package com.pedromossi.caching.starter;
 
 import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
 import com.pedromossi.caching.caffeine.CaffeineCacheAdapter;
-import com.pedromossi.caching.micrometer.MetricsCollectingCacheProvider;
 import com.pedromossi.caching.redis.RedisCacheAdapter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

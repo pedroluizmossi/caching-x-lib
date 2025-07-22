@@ -71,6 +71,7 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
     @Override
     public void put(String key, Object value) {
         Timer.Sample sample = Timer.start(meterRegistry);
+        String keyPrefix = extractKeyPrefix(key);
         try {
             delegate.put(key, value);
 
@@ -85,11 +86,11 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
             sample.stop(
                     Timer.builder(METRIC_LATENCY)
                             .tags(commonTags)
-                            .tags("operation", "put", "key.prefix", extractKeyPrefix(key))
+                            .tags("operation", "put", "key.prefix", keyPrefix)
                             .publishPercentiles(0.5, 0.95, 0.99)
                             .register(meterRegistry));
         } catch (Exception e) {
-            recordFailure(sample, "put", key, e);
+            recordFailure(sample, "put", keyPrefix, e);
             throw e;
         }
     }
@@ -97,16 +98,17 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
     @Override
     public void evict(String key) {
         Timer.Sample sample = Timer.start(meterRegistry);
+        String keyPrefix = extractKeyPrefix(key);
         try {
             delegate.evict(key);
             sample.stop(
                     Timer.builder(METRIC_LATENCY)
                             .tags(commonTags)
-                            .tags("operation", "evict", "key.prefix", extractKeyPrefix(key))
+                            .tags("operation", "evict", "key.prefix", keyPrefix)
                             .publishPercentiles(0.5, 0.95, 0.99)
                             .register(meterRegistry));
         } catch (Exception e) {
-            recordFailure(sample, "evict", key, e);
+            recordFailure(sample, "evict", keyPrefix, e);
             throw e;
         }
     }
@@ -117,14 +119,14 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
      *
      * @param sample The Timer.Sample started at the beginning of the operation.
      * @param operation The name of the operation (e.g., "get", "put").
-     * @param key The cache key involved in the operation.
+     * @param keyPrefix The extracted prefix of the cache key involved.
      * @param e The exception that was thrown.
      */
-    private void recordFailure(Timer.Sample sample, String operation, String key, Exception e) {
+    private void recordFailure(Timer.Sample sample, String operation, String keyPrefix, Exception e) {
         sample.stop(
                 Timer.builder(METRIC_LATENCY)
                         .tags(commonTags)
-                        .tags("operation", operation, "key.prefix", extractKeyPrefix(key))
+                        .tags("operation", operation, "key.prefix", keyPrefix)
                         .publishPercentiles(0.5, 0.95, 0.99)
                         .register(meterRegistry));
 
@@ -134,7 +136,7 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
                         "operation",
                         operation,
                         "key.prefix",
-                        extractKeyPrefix(key),
+                        keyPrefix,
                         "exception.type",
                         e.getClass().getSimpleName())
                 .register(meterRegistry)
@@ -142,27 +144,6 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
     }
 
     @Override
-    /**
-     * Retrieves multiple values from the cache while collecting batch operation metrics.
-     *
-     * <p>This method collects comprehensive metrics for batch retrieval operations, including:</p>
-     * <ul>
-     *   <li>Individual hit and miss counts for each key in the batch</li>
-     *   <li>Overall batch operation latency</li>
-     *   <li>Error metrics if the batch operation fails</li>
-     * </ul>
-     *
-     * <p>The hit/miss ratio is calculated by comparing the number of found items against
-     * the total number of requested keys, providing insight into cache effectiveness
-     * for batch operations.</p>
-     *
-     * @param <T> the expected type of all cached values
-     * @param keys the set of cache keys to lookup (must not be null)
-     * @param typeRef a reference to the expected type for all values (must not be null)
-     * @return a map containing found keys and their corresponding values
-     * @throws NullPointerException if keys or typeRef is null
-     * @see #get(String, ParameterizedTypeReference)
-     */
     public <T> Map<String, T> getAll(Set<String> keys, ParameterizedTypeReference<T> typeRef) {
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
@@ -198,23 +179,6 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
     }
 
     @Override
-    /**
-     * Stores multiple key-value pairs in the cache while collecting batch operation metrics.
-     *
-     * <p>This method collects metrics for batch storage operations, including:</p>
-     * <ul>
-     *   <li>Batch operation latency</li>
-     *   <li>Error metrics if the batch operation fails</li>
-     *   <li>Success counters for completed batch operations</li>
-     * </ul>
-     *
-     * <p>The batch operation is tagged with a special batch key prefix to distinguish
-     * it from individual put operations in the metrics.</p>
-     *
-     * @param items a map of key-value pairs to store in the cache (must not be null)
-     * @throws NullPointerException if items is null
-     * @see #put(String, Object)
-     */
     public void putAll(Map<String, Object> items) {
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
@@ -232,23 +196,6 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
     }
 
     @Override
-    /**
-     * Removes multiple keys from the cache while collecting batch operation metrics.
-     *
-     * <p>This method collects metrics for batch eviction operations, including:</p>
-     * <ul>
-     *   <li>Batch operation latency</li>
-     *   <li>Error metrics if the batch operation fails</li>
-     *   <li>Success counters for completed batch operations</li>
-     * </ul>
-     *
-     * <p>The batch operation is tagged with a special batch key prefix to distinguish
-     * it from individual evict operations in the metrics.</p>
-     *
-     * @param keys the set of cache keys to remove (must not be null)
-     * @throws NullPointerException if keys is null
-     * @see #evict(String)
-     */
     public void evictAll(Set<String> keys) {
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
@@ -281,4 +228,3 @@ public class MetricsCollectingCacheProvider implements CacheProvider {
         return (firstColon == -1) ? "none" : key.substring(0, firstColon);
     }
 }
-
