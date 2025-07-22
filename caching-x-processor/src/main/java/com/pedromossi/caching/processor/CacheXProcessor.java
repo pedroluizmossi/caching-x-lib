@@ -83,8 +83,6 @@ public class CacheXProcessor extends AbstractProcessor {
             validateSpelExpression(method);
             validateMethodHostClass(method);
             validateOperationAndReturnType(method);
-            validateMethodModifiers(method);
-            validateSpelExpression(method);
         }
         return false; // Allows other processors to also act on these annotations
     }
