@@ -8,6 +8,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
+import javax.lang.model.type.TypeKind;
 import javax.tools.Diagnostic;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -80,6 +81,10 @@ public class CacheXProcessor extends AbstractProcessor {
             ExecutableElement method = (ExecutableElement) element;
             validateMethodModifiers(method);
             validateSpelExpression(method);
+            validateMethodHostClass(method);
+            validateOperationAndReturnType(method);
+            validateMethodModifiers(method);
+            validateSpelExpression(method);
         }
         return false; // Allows other processors to also act on these annotations
     }
@@ -143,6 +148,38 @@ public class CacheXProcessor extends AbstractProcessor {
             if (!methodParamNames.contains(spelParamName)) {
                 error(method, "The SpEL expression references parameter '#%s', which does not exist in the method signature.", spelParamName);
             }
+        }
+    }
+
+    /**
+     * Validates that the method's enclosing class is not final.
+     *
+     * <p>Methods annotated with @CacheX cannot be in a final class, as this would prevent
+     * proxy-based caching mechanisms from working properly.</p>
+     *
+     * @param method the method to validate
+     */
+    private void validateMethodHostClass(ExecutableElement method) {
+        Element enclosingElement = method.getEnclosingElement();
+        if (enclosingElement.getKind().isClass() && enclosingElement.getModifiers().contains(Modifier.FINAL)) {
+            error(method, "Methods with @CacheX cannot be in a final class. The enclosing class '%s' is final.", enclosingElement.getSimpleName());
+        }
+    }
+
+    /**
+     * Validates the operation type and return type of the method.
+     *
+     * <p>Methods with @CacheX operation GET must return a non-void type.
+     * This validation ensures that caching operations can retrieve values correctly.</p>
+     *
+     * @param method the method to validate
+     */
+    private void validateOperationAndReturnType(ExecutableElement method) {
+        CacheX annotation = method.getAnnotation(CacheX.class);
+        boolean isGetOperation = annotation.operation() == CacheX.Operation.GET;
+
+        if (isGetOperation && method.getReturnType().getKind() == TypeKind.VOID) {
+            error(method, "Methods with @CacheX operation GET must return a non-void type. The method '%s' returns void.", method.getSimpleName());
         }
     }
 
