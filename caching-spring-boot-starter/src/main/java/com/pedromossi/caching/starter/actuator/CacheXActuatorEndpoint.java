@@ -47,6 +47,7 @@ public class CacheXActuatorEndpoint {
 
     @ReadOperation
     public Map<String, Object> inspectKey(@Selector String key) {
+        String foundIn = "foundIn";
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("key", key);
 
@@ -54,15 +55,15 @@ public class CacheXActuatorEndpoint {
 
         Object l1Value = l1CacheProvider.map(p -> p.get(key, typeRef)).orElse(null);
         if (l1Value != null) {
-            details.put("foundIn", "L1");
+            details.put(foundIn, "L1");
             details.put("valueType", l1Value.getClass().getName());
         } else {
             Object l2Value = l2CacheProvider.map(p -> p.get(key, typeRef)).orElse(null);
             if (l2Value != null) {
-                details.put("foundIn", "L2");
+                details.put(foundIn, "L2");
                 details.put("valueType", l2Value.getClass().getName());
             } else {
-                details.put("foundIn", "NONE");
+                details.put(foundIn, "NONE");
             }
         }
         return details;
