@@ -13,7 +13,7 @@
 ## Table of Contents
 
 ### :books: [Github Wiki](https://github.com/pedroluizmossi/caching-x-lib/wiki)  
-### :globe_with_meridians: [WebSite](https://pedroluizmossi.github.io/caching-x-lib/#features)
+### :globe_with_meridians: [WebSite](https://pedroluizmossi.github.io/caching-x-lib
 
 - [Why Caching-X?](#why-caching-x)
 - [Key Features](#key-features)
