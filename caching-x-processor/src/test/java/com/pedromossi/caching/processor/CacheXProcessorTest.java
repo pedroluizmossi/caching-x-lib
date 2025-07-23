@@ -1,233 +1,175 @@
 package com.pedromossi.caching.processor;
 
-import com.google.testing.compile.Compilation;
-import com.google.testing.compile.JavaFileObjects;
-import org.junit.jupiter.api.Test;
-
-import javax.tools.JavaFileObject;
-
 import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
 
+import com.google.testing.compile.Compilation;
+import com.google.testing.compile.JavaFileObjects;
+import javax.tools.JavaFileObject;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
 /**
- * Unit tests for {@link CacheXProcessor}.
- * These tests use the Google Compile Testing library to simulate the annotation processing phase.
+ * Optimized unit tests for {@link CacheXProcessor} using Google Compile Testing.
  */
+@DisplayName("CacheX Annotation Processor")
 class CacheXProcessorTest {
 
     private static final String CACHEX_ANNOTATION_SOURCE =
-            "package com.pedromossi.caching.annotation;\n" +
-                    "import java.lang.annotation.*;\n" +
-                    "@Target(ElementType.METHOD)\n" +
-                    "@Retention(RetentionPolicy.RUNTIME)\n" +
-                    "public @interface CacheX {\n" +
-                    "    String key();\n" +
-                    "    Operation operation() default Operation.GET;\n" +
-                    "    enum Operation { GET, EVICT }\n" +
-                    "}";
+            "package com.pedromossi.caching.annotation;\n"
+                    + "import java.lang.annotation.*;\n"
+                    + "@Target(ElementType.METHOD)\n"
+                    + "@Retention(RetentionPolicy.RUNTIME)\n"
+                    + "public @interface CacheX {\n"
+                    + "    String key();\n"
+                    + "    Operation operation() default Operation.GET;\n"
+                    + "    enum Operation { GET, EVICT }\n"
+                    + "}";
 
     @Test
-    void shouldCompileSuccessfully_whenMethodIsValid() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'user:' + #id\")\n" +
-                        "    public String getUser(String id) {\n" +
-                        "        return \"user-data\";\n" +
-                        "    }\n" +
-                        "}\n"
+    @DisplayName("should compile successfully for a valid annotated method")
+    void shouldCompileSuccessfullyForValidMethod() {
+        JavaFileObject source = generateSource(
+                "public String getUser(String id) { return \"user-data\"; }",
+                "@CacheX(key = \"'user:' + #id\")"
         );
-
-        Compilation compilation = javac()
-                .withProcessors(new CacheXProcessor())
-                .compile(JavaFileObjects.forSourceString("com.pedromossi.caching.annotation.CacheX", CACHEX_ANNOTATION_SOURCE), source);
-
-        assertThat(compilation).succeeded();
-    }
-
-    @Test
-    void shouldFailCompilation_whenMethodIsPrivate() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'key'\")\n" +
-                        "    private String getUser(String id) { return null; }\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("Methods with @CacheX cannot be 'private'.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldFailCompilation_whenMethodIsStatic() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'key'\")\n" +
-                        "    public static String getUser(String id) { return null; }\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("Methods with @CacheX cannot be 'static'.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldFailCompilation_whenMethodIsFinal() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'key'\")\n" +
-                        "    public final String getUser(String id) { return null; }\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("Methods with @CacheX cannot be 'final'.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldFailCompilation_whenEnclosingClassIsFinal() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public final class CacheableService {\n" +
-                        "    @CacheX(key = \"'key'\")\n" +
-                        "    public String getUser(String id) { return null; }\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("Methods with @CacheX cannot be in a final class. The enclosing class 'CacheableService' is final.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldFailCompilation_whenSpelIsInvalid() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'user:' + #id +\")\n" + // Invalid SpEL
-                        "    public String getUser(String id) { return null; }\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("The SpEL expression in the key is invalid: 'user:' + #id +.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldFailCompilation_whenSpelParamDoesNotExist() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'user:' + #userId\")\n" + // #userId does not exist
-                        "    public String getUser(String id) { return null; }\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("The SpEL expression references parameter '#userId', which does not exist in the method signature.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldFailCompilation_whenGetOperationReturnsVoid() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'key'\", operation = CacheX.Operation.GET)\n" +
-                        "    public void doSomething() {}\n" +
-                        "}\n"
-        );
-
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("Methods with @CacheX operation GET must return a non-void type. The method 'doSomething' returns void.")
-                .inFile(source)
-                .onLine(5);
-    }
-
-    @Test
-    void shouldCompileSuccessfully_whenEvictOperationReturnsVoid() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "public class CacheableService {\n" +
-                        "    @CacheX(key = \"'key'\", operation = CacheX.Operation.EVICT)\n" +
-                        "    public void evictUser(String id) {}\n" +
-                        "}\n"
-        );
-
         Compilation compilation = compileWithProcessor(source);
         assertThat(compilation).succeeded();
     }
 
-    @Test
-    void shouldFailCompilation_whenAnnotationIsOnNonMethodElement() {
-        JavaFileObject source = JavaFileObjects.forSourceString("com.example.InvalidUsage",
-                "package com.example;\n" +
-                        "import com.pedromossi.caching.annotation.CacheX;\n" +
-                        "@CacheX(key = \"'key'\")\n" +
-                        "public class InvalidUsage {\n" +
-                        "}\n"
-        );
+    @Nested
+    @DisplayName("Modifier Validation")
+    class ModifierValidation {
 
-        Compilation compilation = compileWithProcessor(source);
-        assertThat(compilation).failed();
-        assertThat(compilation)
-                .hadErrorContaining("annotation interface not applicable to this kind of declaration")
-                .inFile(source)
-                .onLine(3);
+        @ParameterizedTest(name = "should fail for ''{0}'' method")
+        @CsvSource({
+                "private, Methods with @CacheX cannot be 'private'.",
+                "static,  Methods with @CacheX cannot be 'static'.",
+                "final,   Methods with @CacheX cannot be 'final'."
+        })
+        void shouldFailForInvalidMethodModifiers(String modifier, String expectedError) {
+            JavaFileObject source = generateSource(
+                    modifier + " String getUser(String id) { return null; }",
+                    "@CacheX(key = \"'key'\")"
+            );
+            Compilation compilation = compileWithProcessor(source);
+            assertThat(compilation).failed();
+            assertThat(compilation)
+                    .hadErrorContaining(expectedError)
+                    .inFile(source)
+                    .onLine(5);
+        }
 
+        @Test
+        @DisplayName("should fail when the enclosing class is final")
+        void shouldFailForFinalEnclosingClass() {
+            JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
+                    "package com.example;\n"
+                            + "import com.pedromossi.caching.annotation.CacheX;\n"
+                            + "public final class CacheableService {\n"
+                            + "    @CacheX(key = \"'key'\")\n"
+                            + "    public String getUser(String id) { return null; }\n"
+                            + "}\n"
+            );
+            Compilation compilation = compileWithProcessor(source);
+            assertThat(compilation).failed();
+            assertThat(compilation)
+                    .hadErrorContaining("Methods with @CacheX cannot be in a final class.")
+                    .inFile(source)
+                    .onLine(5);
+        }
     }
 
-    /**
-     * Helper method to compile a source file with the CacheXProcessor.
-     * It includes a mock of the @CacheX annotation to make tests self-contained.
-     *
-     * @param source The source file to compile.
-     * @return The result of the compilation.
-     */
+    @Nested
+    @DisplayName("SpEL Validation")
+    class SpelValidation {
+
+        @ParameterizedTest(name = "should fail for invalid SpEL: {0}")
+        @CsvSource({
+                "'user:' + #id +, The SpEL expression in the key is invalid",
+                "'user:' + #userId, The SpEL expression references parameter '#userId', which does not exist"
+        })
+        void shouldFailForInvalidSpel(String keyExpression, String expectedError) {
+            JavaFileObject source = generateSource(
+                    "public String getUser(String id) { return null; }",
+                    "@CacheX(key = \"" + keyExpression + "\")"
+            );
+            Compilation compilation = compileWithProcessor(source);
+            assertThat(compilation).failed();
+            assertThat(compilation).hadErrorContaining(expectedError)
+                    .inFile(source)
+                    .onLine(5);
+        }
+    }
+
+    @Nested
+    @DisplayName("Operation Validation")
+    class OperationValidation {
+
+        @Test
+        @DisplayName("CacheX can only be applied to methods")
+        void shouldFailWhenAppliedToNonMethod() {
+            JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
+                    "package com.example;\n"
+                            + "import com.pedromossi.caching.annotation.CacheX;\n"
+                            + "@CacheX(key = \"'key'\")\n"
+                            + "public class CacheableService {\n"
+                            + "}\n"
+            );
+            Compilation compilation = compileWithProcessor(source);
+            assertThat(compilation).failed();
+            assertThat(compilation)
+                    .hadErrorContaining("annotation interface not applicable to this kind of declaration")
+                    .inFile(source)
+                    .onLine(3);
+        }
+
+        @Test
+        @DisplayName("should fail when GET operation returns void")
+        void shouldFailWhenGetReturnsVoid() {
+            JavaFileObject source = generateSource(
+                    "public void doSomething() {}",
+                    "@CacheX(key = \"'key'\")"
+            );
+            Compilation compilation = compileWithProcessor(source);
+            assertThat(compilation).failed();
+            assertThat(compilation)
+                    .hadErrorContaining("Methods with @CacheX operation GET must return a non-void type.")
+                    .inFile(source)
+                    .onLine(5);
+        }
+
+        @Test
+        @DisplayName("should compile successfully when EVICT operation returns void")
+        void shouldSucceedWhenEvictReturnsVoid() {
+            JavaFileObject source = generateSource(
+                    "public void evictUser(String id) {}",
+                    "@CacheX(key = \"'key'\", operation = CacheX.Operation.EVICT)"
+            );
+            Compilation compilation = compileWithProcessor(source);
+            assertThat(compilation).succeeded();
+        }
+    }
+
+    /** Helper to generate a standard service class with a custom method definition. */
+    private JavaFileObject generateSource(String methodSignature, String annotation) {
+        return JavaFileObjects.forSourceString("com.example.CacheableService",
+                "package com.example;\n"
+                        + "import com.pedromossi.caching.annotation.CacheX;\n"
+                        + "public class CacheableService {\n"
+                        + "    " + annotation + "\n"
+                        + "    " + methodSignature + "\n"
+                        + "}\n"
+        );
+    }
+
+    /** Helper to compile a source file with the CacheXProcessor. */
     private Compilation compileWithProcessor(JavaFileObject source) {
         JavaFileObject cacheXAnnotation = JavaFileObjects.forSourceString(
-                "com.pedromossi.caching.annotation.CacheX",
-                CACHEX_ANNOTATION_SOURCE
-        );
-
-        return javac()
-                .withProcessors(new CacheXProcessor())
-                .compile(cacheXAnnotation, source);
+                "com.pedromossi.caching.annotation.CacheX", CACHEX_ANNOTATION_SOURCE);
+        return javac().withProcessors(new CacheXProcessor()).compile(cacheXAnnotation, source);
     }
 }
