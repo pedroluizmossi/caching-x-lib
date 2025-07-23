@@ -9,9 +9,7 @@ import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
 import com.pedromossi.caching.caffeine.CaffeineCacheAdapter;
 import com.pedromossi.caching.micrometer.MetricsCollectingCacheProvider;
-import com.pedromossi.caching.resilience.CircuitBreakerCacheProvider;
 import com.pedromossi.caching.starter.CachingAutoConfiguration.InvalidationHandler;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -116,9 +114,6 @@ class CachingAutoConfigurationTest {
     @DisplayName("L2 Cache (Redis)")
     class L2CacheConfigurationTests {
         // Pre-configure a runner for all L2 tests to reduce boilerplate
-        private final ApplicationContextRunner l2Runner = contextRunner
-                .withPropertyValues("caching.l2.enabled=true", "spring.main.allow-bean-definition-overriding=true")
-                .withUserConfiguration(MockRedisInfrastructure.class);
 
         @Test
         @DisplayName("should not be created when disabled")

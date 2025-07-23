@@ -25,7 +25,7 @@ import static org.mockito.Mockito.*;
                 "caching.l2.ttl=PT20S"
         }
 )
-public class CachingAutoConfigurationIT extends IntegrationTest {
+class CachingAutoConfigurationIT extends IntegrationTest {
 
     @Autowired
     private CacheService cacheService;
@@ -70,7 +70,7 @@ public class CachingAutoConfigurationIT extends IntegrationTest {
         String result2 = cacheService.getOrLoad(key, typeRef, dataLoader);
 
         assertThat(result2).isEqualTo(value);
-        verify(l1CacheProvider, times(2)).get(eq(key), eq(typeRef));
+        verify(l1CacheProvider, times(2)).get(key, eq(typeRef));
     }
 
     @Test

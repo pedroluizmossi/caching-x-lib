@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
                 "caching.l2.invalidation-topic=test:invalidation"
         }
 )
-public class CachingL2OnlyConfigurationIT extends IntegrationTest {
+class CachingL2OnlyConfigurationIT extends IntegrationTest {
 
     @Autowired
     private CacheService cacheService;
@@ -50,7 +50,7 @@ public class CachingL2OnlyConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
 
         // --- First Call (Cache Miss) ---
         String result1 = cacheService.getOrLoad(key, typeRef, dataLoader);
@@ -78,7 +78,7 @@ public class CachingL2OnlyConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value).thenReturn(null);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value).thenReturn(null);
 
         // Load item into cache
         cacheService.getOrLoad(key, typeRef, dataLoader);
@@ -92,7 +92,7 @@ public class CachingL2OnlyConfigurationIT extends IntegrationTest {
 
         // --- Verify it's gone ---
         reset(l2CacheProvider);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         String reloadedValue = cacheService.getOrLoad(key, typeRef, dataLoader);
 
@@ -111,7 +111,7 @@ public class CachingL2OnlyConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<TestObject> typeRef = new ParameterizedTypeReference<TestObject>() {};
 
         // Configure mock behavior
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(complexObject);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(complexObject);
 
         // --- First Call (Cache Miss) ---
         TestObject result1 = cacheService.getOrLoad(key, typeRef, objectLoader);
@@ -130,7 +130,7 @@ public class CachingL2OnlyConfigurationIT extends IntegrationTest {
         TestObject result2 = cacheService.getOrLoad(key, typeRef, objectLoader);
 
         assertThat(result2).isEqualTo(complexObject);
-        verify(l2CacheProvider, times(2)).get(eq(key), eq(typeRef));
+        verify(l2CacheProvider, times(2)).get(key, eq(typeRef));
     }
 
     // Test object for complex serialization testing

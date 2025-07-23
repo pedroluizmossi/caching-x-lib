@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -66,9 +67,11 @@ class JacksonCacheSerializerTest {
 
         assertThat(result).isNotNull();
         String json = new String(result);
-        assertThat(json).contains("\"name\":\"John\"");
-        assertThat(json).contains("\"age\":30");
-        assertThat(json).contains("\"tags\":[\"tag1\",\"tag2\"]");
+        assertAll(
+                () -> assertThat(json).contains("\"name\":\"John\""),
+                () -> assertThat(json).contains("\"age\":30"),
+                () -> assertThat(json).contains("\"tags\":[\"tag1\",\"tag2\"]")
+        );
     }
 
     @Test
@@ -93,8 +96,10 @@ class JacksonCacheSerializerTest {
 
         assertThat(result).isNotNull();
         String json = new String(result);
-        assertThat(json).contains("\"key1\":100");
-        assertThat(json).contains("\"key2\":200");
+        assertAll(
+                () -> assertThat(json).contains("\"key1\":100"),
+                () -> assertThat(json).contains("\"key2\":200")
+        );
     }
 
     @Test

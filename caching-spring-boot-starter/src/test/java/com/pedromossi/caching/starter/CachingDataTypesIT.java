@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
                 "caching.l2.invalidation-topic=custom:topic"
         }
 )
-public class CachingDataTypesIT extends IntegrationTest {
+class CachingDataTypesIT extends IntegrationTest {
 
     @Autowired
     private CacheService cacheService;
@@ -164,8 +164,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<CustomDataObject> typeRef = new ParameterizedTypeReference<CustomDataObject>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When
         CustomDataObject result = cacheService.getOrLoad(key, typeRef, loader);
@@ -190,8 +190,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<List<String>> typeRef = new ParameterizedTypeReference<List<String>>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(emptyList);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(emptyList);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When
         List<String> result = cacheService.getOrLoad(key, typeRef, loader);

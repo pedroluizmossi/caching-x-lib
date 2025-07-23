@@ -65,7 +65,7 @@ class CachingL1OnlyConfigurationIT extends IntegrationTest {
         String result2 = cacheService.getOrLoad(key, typeRef, dataLoader);
 
         assertThat(result2).isEqualTo(value);
-        verify(l1CacheProvider, times(2)).get(eq(key), eq(typeRef));
+        verify(l1CacheProvider, times(2)).get(key, eq(typeRef));
     }
 
     @Test
@@ -77,7 +77,7 @@ class CachingL1OnlyConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value).thenReturn(null);
 
         // Load item into cache
         cacheService.getOrLoad(key, typeRef, dataLoader);

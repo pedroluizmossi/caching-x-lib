@@ -1,6 +1,7 @@
 package com.pedromossi.caching.starter.actuator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -63,8 +64,10 @@ class CacheXActuatorEndpointTest {
             assertThat(status.get("actions")).isInstanceOf(Map.class);
             @SuppressWarnings("unchecked")
             Map<String, String> actions = (Map<String, String>) status.get("actions");
-            assertThat(actions).containsEntry("inspectKey", "GET /actuator/cachex/{key}");
-            assertThat(actions).containsEntry("evictKey", "DELETE /actuator/cachex/{key}");
+            assertAll(
+                () -> assertThat(actions).containsEntry("inspectKey", "GET /actuator/cachex/{key}"),
+                () -> assertThat(actions).containsEntry("evictKey", "DELETE /actuator/cachex/{key}")
+            );
         }
     }
 
@@ -126,12 +129,15 @@ class CacheXActuatorEndpointTest {
             // L1 is missing, should check L2
             endpoint = new CacheXActuatorEndpoint(cacheService, Optional.empty(), Optional.of(l2CacheProvider));
             when(l2CacheProvider.get(any(), any())).thenReturn(null);
-            assertThat(endpoint.inspectKey("key").get("foundIn")).isEqualTo("NONE");
+            assertThat(endpoint.inspectKey("key"))
+                    .containsEntry("foundIn", "NONE")
+                    .doesNotContainKey("valueType");
             verify(l2CacheProvider).get(any(), any());
 
             // Both are missing
             endpoint = new CacheXActuatorEndpoint(cacheService, Optional.empty(), Optional.empty());
-            assertThat(endpoint.inspectKey("key").get("foundIn")).isEqualTo("NONE");
+            assertThat(endpoint.inspectKey("key"))
+                    .containsEntry("foundIn","NONE");
         }
     }
 
