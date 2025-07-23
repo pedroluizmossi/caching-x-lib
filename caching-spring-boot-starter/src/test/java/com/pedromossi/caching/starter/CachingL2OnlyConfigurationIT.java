@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +32,7 @@ public class CachingL2OnlyConfigurationIT extends IntegrationTest {
     @Autowired
     private CacheService cacheService;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l2CacheProvider")
     private CacheProvider l2CacheProvider;
 

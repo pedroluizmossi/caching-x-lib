@@ -27,8 +27,8 @@ import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(
         classes = CachingAutoConfiguration.class,
@@ -41,7 +41,7 @@ import org.springframework.core.ParameterizedTypeReference;
                 "caching.async.queue-capacity=100"
         })
 @DisplayName("Integration Test with Custom Configuration")
-public class CachingCustomConfigurationIT extends IntegrationTest {
+class CachingCustomConfigurationIT extends IntegrationTest {
 
     private static final String KEY = "test-key-" + UUID.randomUUID();
     private static final String VALUE = "test-value-" + UUID.randomUUID();
@@ -50,8 +50,9 @@ public class CachingCustomConfigurationIT extends IntegrationTest {
     @Autowired private CacheService cacheService;
     @Autowired private CachingProperties cachingProperties;
 
-    @MockBean @Qualifier("l1CacheProvider") private CacheProvider l1CacheProvider;
-    @MockBean @Qualifier("l2CacheProvider") private CacheProvider l2CacheProvider;
+    @MockitoBean
+    @Qualifier("l1CacheProvider") private CacheProvider l1CacheProvider;
+    @MockitoBean @Qualifier("l2CacheProvider") private CacheProvider l2CacheProvider;
 
     @BeforeEach
     void cleanupCaches() {
@@ -137,7 +138,7 @@ public class CachingCustomConfigurationIT extends IntegrationTest {
                                                         String key = "concurrent-key-" + i;
                                                         cacheService.getOrLoad(key, TYPE_REF, () -> "value-" + i);
                                                     }))
-                            .collect(Collectors.toList());
+                            .toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 

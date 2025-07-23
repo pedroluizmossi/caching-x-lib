@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -26,12 +26,12 @@ import static org.mockito.Mockito.*;
                 "caching.l2.enabled=false"
         }
 )
-public class CachingL1OnlyConfigurationIT extends IntegrationTest {
+class CachingL1OnlyConfigurationIT extends IntegrationTest {
 
     @Autowired
     private CacheService cacheService;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l1CacheProvider")
     private CacheProvider l1CacheProvider;
 
@@ -49,7 +49,7 @@ public class CachingL1OnlyConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
 
         // --- First Call (Cache Miss) ---
         String result1 = cacheService.getOrLoad(key, typeRef, dataLoader);
@@ -91,7 +91,7 @@ public class CachingL1OnlyConfigurationIT extends IntegrationTest {
 
         // --- Verify it's gone ---
         reset(l1CacheProvider);
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         String reloadedValue = cacheService.getOrLoad(key, typeRef, dataLoader);
 
@@ -111,8 +111,8 @@ public class CachingL1OnlyConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key1), eq(typeRef))).thenReturn(null).thenReturn(value1);
-        when(l1CacheProvider.get(eq(key2), eq(typeRef))).thenReturn(null).thenReturn(value2);
+        when(l1CacheProvider.get(key1, eq(typeRef))).thenReturn(null).thenReturn(value1);
+        when(l1CacheProvider.get(key2, eq(typeRef))).thenReturn(null).thenReturn(value2);
 
         // --- Load both values ---
         String result1 = cacheService.getOrLoad(key1, typeRef, () -> value1);

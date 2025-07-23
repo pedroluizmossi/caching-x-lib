@@ -18,16 +18,17 @@ import org.junit.jupiter.params.provider.CsvSource;
 @DisplayName("CacheX Annotation Processor")
 class CacheXProcessorTest {
 
-    private static final String CACHEX_ANNOTATION_SOURCE =
-            "package com.pedromossi.caching.annotation;\n"
-                    + "import java.lang.annotation.*;\n"
-                    + "@Target(ElementType.METHOD)\n"
-                    + "@Retention(RetentionPolicy.RUNTIME)\n"
-                    + "public @interface CacheX {\n"
-                    + "    String key();\n"
-                    + "    Operation operation() default Operation.GET;\n"
-                    + "    enum Operation { GET, EVICT }\n"
-                    + "}";
+    private static final String CACHEX_ANNOTATION_SOURCE = """
+            package com.pedromossi.caching.annotation;
+            import java.lang.annotation.*;
+            @Target(ElementType.METHOD)
+            @Retention(RetentionPolicy.RUNTIME)
+            public @interface CacheX {
+                String key();
+                Operation operation() default Operation.GET;
+                enum Operation { GET, EVICT }
+            }
+            """;
 
     @Test
     @DisplayName("should compile successfully for a valid annotated method")
@@ -66,14 +67,14 @@ class CacheXProcessorTest {
         @Test
         @DisplayName("should fail when the enclosing class is final")
         void shouldFailForFinalEnclosingClass() {
-            JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                    "package com.example;\n"
-                            + "import com.pedromossi.caching.annotation.CacheX;\n"
-                            + "public final class CacheableService {\n"
-                            + "    @CacheX(key = \"'key'\")\n"
-                            + "    public String getUser(String id) { return null; }\n"
-                            + "}\n"
-            );
+            JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService", """
+                    package com.example;
+                    import com.pedromossi.caching.annotation.CacheX;
+                    public final class CacheableService {
+                        @CacheX(key = "'key'")
+                        public String getUser(String id) { return null; }
+                    }
+                    """);
             Compilation compilation = compileWithProcessor(source);
             assertThat(compilation).failed();
             assertThat(compilation)
@@ -112,13 +113,13 @@ class CacheXProcessorTest {
         @Test
         @DisplayName("CacheX can only be applied to methods")
         void shouldFailWhenAppliedToNonMethod() {
-            JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService",
-                    "package com.example;\n"
-                            + "import com.pedromossi.caching.annotation.CacheX;\n"
-                            + "@CacheX(key = \"'key'\")\n"
-                            + "public class CacheableService {\n"
-                            + "}\n"
-            );
+            JavaFileObject source = JavaFileObjects.forSourceString("com.example.CacheableService", """
+                    package com.example;
+                    import com.pedromossi.caching.annotation.CacheX;
+                    @CacheX(key = "'key'")
+                    public class CacheableService {
+                    }
+                    """);
             Compilation compilation = compileWithProcessor(source);
             assertThat(compilation).failed();
             assertThat(compilation)
@@ -156,14 +157,14 @@ class CacheXProcessorTest {
 
     /** Helper to generate a standard service class with a custom method definition. */
     private JavaFileObject generateSource(String methodSignature, String annotation) {
-        return JavaFileObjects.forSourceString("com.example.CacheableService",
-                "package com.example;\n"
-                        + "import com.pedromossi.caching.annotation.CacheX;\n"
-                        + "public class CacheableService {\n"
-                        + "    " + annotation + "\n"
-                        + "    " + methodSignature + "\n"
-                        + "}\n"
-        );
+        return JavaFileObjects.forSourceString("com.example.CacheableService", """
+                package com.example;
+                import com.pedromossi.caching.annotation.CacheX;
+                public class CacheableService {
+                    %s
+                    %s
+                }
+                """.formatted(annotation, methodSignature));
     }
 
     /** Helper to compile a source file with the CacheXProcessor. */

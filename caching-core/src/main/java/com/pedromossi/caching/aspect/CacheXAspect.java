@@ -200,7 +200,6 @@ public class CacheXAspect {
             try {
                 return joinPoint.proceed();
             } catch (Throwable e) {
-                // Lançar uma exceção não verificada para evitar 'throws Throwable'
                 throw new RuntimeException("Error executing loader for cache key: " + key, e);
             }
         });

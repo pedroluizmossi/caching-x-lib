@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -32,11 +32,11 @@ public class CachingDataTypesIT extends IntegrationTest {
     @Autowired
     private CacheService cacheService;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l1CacheProvider")
     private CacheProvider l1CacheProvider;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l2CacheProvider")
     private CacheProvider l2CacheProvider;
 
@@ -54,8 +54,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When
         String result = cacheService.getOrLoad(key, typeRef, loader);
@@ -77,8 +77,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<Integer> typeRef = new ParameterizedTypeReference<Integer>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When
         Integer result = cacheService.getOrLoad(key, typeRef, loader);
@@ -100,8 +100,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<List<String>> typeRef = new ParameterizedTypeReference<List<String>>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When
         List<String> result = cacheService.getOrLoad(key, typeRef, loader);
@@ -133,8 +133,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<Map<String, Object>> typeRef = new ParameterizedTypeReference<>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When
         Map<String, Object> result = cacheService.getOrLoad(key, typeRef, loader);
@@ -241,8 +241,8 @@ public class CachingDataTypesIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> cacheService.getOrLoad(key, typeRef, failingLoader))

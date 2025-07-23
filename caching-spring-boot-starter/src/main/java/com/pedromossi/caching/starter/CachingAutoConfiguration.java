@@ -522,7 +522,7 @@ public class CachingAutoConfiguration {
                     CaffeineCacheMetrics.monitor(
                             meterRegistry, adapter.getNativeCache(), "l1Cache", Collections.emptyList());
                     log.info("Caffeine native stats for L1 cache are bound to Micrometer.");
-                } else if (l1CacheProvider instanceof MetricsCollectingCacheProvider decorator) {
+                } else if (l1CacheProvider instanceof MetricsCollectingCacheProvider) {
                     log.info("Attempting to bind Caffeine native stats through decorator...");
                 }
             }

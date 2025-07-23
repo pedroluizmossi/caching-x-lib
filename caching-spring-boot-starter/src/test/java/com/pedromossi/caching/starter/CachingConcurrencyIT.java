@@ -7,10 +7,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -31,16 +32,16 @@ import static org.mockito.Mockito.*;
                 "caching.async.max-pool-size=8"
         }
 )
-public class CachingConcurrencyIT extends IntegrationTest {
+class CachingConcurrencyIT extends IntegrationTest {
 
     @Autowired
     private CacheService cacheService;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l1CacheProvider")
     private CacheProvider l1CacheProvider;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l2CacheProvider")
     private CacheProvider l2CacheProvider;
 
@@ -61,8 +62,8 @@ public class CachingConcurrencyIT extends IntegrationTest {
         for (int i = 0; i < numberOfThreads; i++) {
             String key = keyPrefix + i;
             String value = "Value-" + i + "-" + UUID.randomUUID();
-            when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-            when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+            when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+            when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
         }
 
         // When - Execute concurrent loads
@@ -146,15 +147,15 @@ public class CachingConcurrencyIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(readKey), eq(typeRef))).thenReturn(null).thenReturn(readValue);
-        when(l2CacheProvider.get(eq(readKey), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(readKey, eq(typeRef))).thenReturn(null).thenReturn(readValue);
+        when(l2CacheProvider.get(readKey, eq(typeRef))).thenReturn(null);
 
-        when(l1CacheProvider.get(eq(writeKey), eq(typeRef))).thenReturn(null).thenReturn(writeValue);
-        when(l2CacheProvider.get(eq(writeKey), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(writeKey, eq(typeRef))).thenReturn(null).thenReturn(writeValue);
+        when(l2CacheProvider.get(writeKey, eq(typeRef))).thenReturn(null);
 
-        when(l1CacheProvider.get(eq(invalidateKey), eq(typeRef)))
+        when(l1CacheProvider.get(invalidateKey, eq(typeRef)))
                 .thenReturn(null).thenReturn(invalidateValue).thenReturn(null);
-        when(l2CacheProvider.get(eq(invalidateKey), eq(typeRef))).thenReturn(null);
+        when(l2CacheProvider.get(invalidateKey, eq(typeRef))).thenReturn(null);
 
         // When - Execute mixed operations concurrently
         CompletableFuture<String> readFuture = CompletableFuture.supplyAsync(() ->
@@ -220,7 +221,7 @@ public class CachingConcurrencyIT extends IntegrationTest {
 
         // Then
         assertThat(results).hasSize(numberOfThreads);
-        assertThat(results).allMatch(result -> result == null);
+        assertThat(results).allMatch(Objects::isNull);
         assertThat(loaderCallCount.get()).isEqualTo(numberOfThreads);
 
         // Wait for async operations to complete

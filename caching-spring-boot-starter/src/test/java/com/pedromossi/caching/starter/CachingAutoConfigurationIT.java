@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -30,11 +30,11 @@ public class CachingAutoConfigurationIT extends IntegrationTest {
     @Autowired
     private CacheService cacheService;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l1CacheProvider")
     private CacheProvider l1CacheProvider;
 
-    @MockBean
+    @MockitoBean
     @Qualifier("l2CacheProvider")
     private CacheProvider l2CacheProvider;
 
@@ -52,8 +52,8 @@ public class CachingAutoConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // --- 1. First Call (Cache Miss) ---
         String result1 = cacheService.getOrLoad(key, typeRef, dataLoader);
@@ -82,8 +82,8 @@ public class CachingAutoConfigurationIT extends IntegrationTest {
         ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
 
         // Configure mock behavior for initial load
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null).thenReturn(value).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null).thenReturn(value).thenReturn(null);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         // Load item into cache
         cacheService.getOrLoad(key, typeRef, dataLoader);
@@ -98,8 +98,8 @@ public class CachingAutoConfigurationIT extends IntegrationTest {
 
         // --- Verify it's gone ---
         reset(l1CacheProvider, l2CacheProvider);
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+        when(l1CacheProvider.get(key, eq(typeRef))).thenReturn(null);
+        when(l2CacheProvider.get(key, eq(typeRef))).thenReturn(null);
 
         cacheService.getOrLoad(key, typeRef, dataLoader);
 
