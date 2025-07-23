@@ -1,26 +1,34 @@
 package com.pedromossi.caching.starter;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.pedromossi.caching.CacheProvider;
 import com.pedromossi.caching.CacheService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.core.ParameterizedTypeReference;
-
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.core.ParameterizedTypeReference;
 
 @SpringBootTest(
         classes = CachingAutoConfiguration.class,
@@ -31,231 +39,132 @@ import static org.mockito.Mockito.*;
                 "caching.async.core-pool-size=2",
                 "caching.async.max-pool-size=4",
                 "caching.async.queue-capacity=100"
-        }
-)
+        })
+@DisplayName("Integration Test with Custom Configuration")
 public class CachingCustomConfigurationIT extends IntegrationTest {
 
-    @Autowired
-    private CacheService cacheService;
+    private static final String KEY = "test-key-" + UUID.randomUUID();
+    private static final String VALUE = "test-value-" + UUID.randomUUID();
+    private static final ParameterizedTypeReference<String> TYPE_REF = new ParameterizedTypeReference<>() {};
 
-    @Autowired
-    private CachingProperties cachingProperties;
+    @Autowired private CacheService cacheService;
+    @Autowired private CachingProperties cachingProperties;
 
-    @MockBean
-    @Qualifier("l1CacheProvider")
-    private CacheProvider l1CacheProvider;
-
-    @MockBean
-    @Qualifier("l2CacheProvider")
-    private CacheProvider l2CacheProvider;
+    @MockBean @Qualifier("l1CacheProvider") private CacheProvider l1CacheProvider;
+    @MockBean @Qualifier("l2CacheProvider") private CacheProvider l2CacheProvider;
 
     @BeforeEach
     void cleanupCaches() {
         reset(l1CacheProvider, l2CacheProvider);
     }
 
-    @Test
-    void shouldUseCustomConfiguration() {
-        // Verify that custom properties are loaded correctly
-        assertThat(cachingProperties.getL1().getSpec()).isEqualTo("maximumSize=50,expireAfterWrite=5s");
-        assertThat(cachingProperties.getL2().getTtl()).isEqualTo(Duration.ofSeconds(10));
-        assertThat(cachingProperties.getL2().getInvalidationTopic()).isEqualTo("integration:test:topic");
-        assertThat(cachingProperties.getAsync().getCorePoolSize()).isEqualTo(2);
-        assertThat(cachingProperties.getAsync().getMaxPoolSize()).isEqualTo(4);
-        assertThat(cachingProperties.getAsync().getQueueCapacity()).isEqualTo(100);
+    @Nested
+    @DisplayName("Properties Verification")
+    class PropertiesVerification {
+        @Test
+        @DisplayName("should load custom properties correctly")
+        void shouldLoadCustomProperties() {
+            assertThat(cachingProperties.getL1().getSpec()).isEqualTo("maximumSize=50,expireAfterWrite=5s");
+            assertThat(cachingProperties.getL2().getTtl()).isEqualTo(Duration.ofSeconds(10));
+            assertThat(cachingProperties.getL2().getInvalidationTopic()).isEqualTo("integration:test:topic");
+            assertThat(cachingProperties.getAsync().getCorePoolSize()).isEqualTo(2);
+            assertThat(cachingProperties.getAsync().getMaxPoolSize()).isEqualTo(4);
+            assertThat(cachingProperties.getAsync().getQueueCapacity()).isEqualTo(100);
+        }
     }
 
-    @Test
-    void shouldPromoteFromL2ToL1WhenL1Miss() {
-        // Given
-        String key = "promotion-test-key";
-        String value = "Value from L2 - " + UUID.randomUUID();
-        Supplier<String> loader = () -> "should-not-be-called";
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
+    @Nested
+    @DisplayName("Core Cache Flows")
+    class CoreCacheFlows {
+        @Test
+        @DisplayName("should promote from L2 to L1 when L1 misses")
+        void shouldPromoteFromL2ToL1_whenL1Misses() {
+            when(l1CacheProvider.get(eq(KEY), any())).thenReturn(null);
+            when(l2CacheProvider.get(eq(KEY), any())).thenReturn(VALUE);
 
-        // Configure mock behavior: L1 miss, L2 hit
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(value);
+            String result = cacheService.getOrLoad(KEY, TYPE_REF, () -> "should-not-be-called");
 
-        // When
-        String result = cacheService.getOrLoad(key, typeRef, loader);
+            assertThat(result).isEqualTo(VALUE);
+            InOrder inOrder = inOrder(l1CacheProvider, l2CacheProvider);
+            inOrder.verify(l1CacheProvider).get(eq(KEY), any());
+            inOrder.verify(l2CacheProvider).get(eq(KEY), any());
 
-        // Then
-        assertThat(result).isEqualTo(value);
-
-        // Verify L1 was checked first, then L2
-        verify(l1CacheProvider, times(1)).get(eq(key), eq(typeRef));
-        verify(l2CacheProvider, times(1)).get(eq(key), eq(typeRef));
-
-        // Wait for async promotion to L1
-        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1CacheProvider, times(1)).put(key, value);
-        });
-    }
-
-    @Test
-    void shouldHandleAsyncOperationsCorrectly() {
-        // Given
-        String keyPrefix = "async-test-";
-        int numberOfOperations = 5;
-        AtomicInteger completedOperations = new AtomicInteger(0);
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
-
-        // Configure mock behavior
-        for (int i = 0; i < numberOfOperations; i++) {
-            String key = keyPrefix + i;
-            when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-            when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+            await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> verify(l1CacheProvider).put(KEY, VALUE));
         }
 
-        // When - Execute multiple async operations
-        CompletableFuture<Void> allOperations = CompletableFuture.allOf(
-                IntStream.range(0, numberOfOperations)
-                        .mapToObj(i -> CompletableFuture.runAsync(() -> {
-                            String key = keyPrefix + i;
-                            String value = "Async Value " + i + " - " + UUID.randomUUID();
-                            String result = cacheService.getOrLoad(key, typeRef, () -> {
-                                completedOperations.incrementAndGet();
-                                return value;
-                            });
-                            assertThat(result).isEqualTo(value);
-                        }))
-                        .toArray(CompletableFuture[]::new)
-        );
+        @Test
+        @DisplayName("should invalidate and reload when data changes")
+        void shouldInvalidateAndReload_whenDataChanges() {
+            String initialValue = "Initial-" + VALUE;
+            String reloadedValue = "Reloaded-" + VALUE;
+            AtomicInteger loaderCallCount = new AtomicInteger(0);
+            Supplier<String> loader = () -> {
+                loaderCallCount.incrementAndGet();
+                return loaderCallCount.get() == 1 ? initialValue : reloadedValue;
+            };
 
-        // Wait for completion
-        allOperations.join();
+            // 1. Initial load
+            cacheService.getOrLoad(KEY, TYPE_REF, loader);
+            await().untilAsserted(() -> verify(l1CacheProvider).put(KEY, initialValue));
 
-        // Then
-        assertThat(completedOperations.get()).isEqualTo(numberOfOperations);
+            // 2. Invalidate
+            cacheService.invalidate(KEY);
+            await().untilAsserted(() -> verify(l1CacheProvider).evict(KEY));
 
-        // Wait for async storage operations
-        await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1CacheProvider, times(numberOfOperations)).put(anyString(), any());
-            verify(l2CacheProvider, times(numberOfOperations)).put(anyString(), any());
-        });
-    }
+            // 3. Reload
+            reset(l1CacheProvider, l2CacheProvider); // Reset mocks for clean verification
+            String result = cacheService.getOrLoad(KEY, TYPE_REF, loader);
 
-    @Test
-    void shouldHandleRapidInvalidationAndReload() {
-        // Given
-        String key = "rapid-invalidation-key";
-        String initialValue = "Initial Value - " + UUID.randomUUID();
-        String reloadedValue = "Reloaded Value - " + UUID.randomUUID();
-
-        AtomicInteger loaderCallCount = new AtomicInteger(0);
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
-
-        // Configure mock behavior - both caches return null initially
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-
-        // When - Load, invalidate, and reload rapidly
-        String result1 = cacheService.getOrLoad(key, typeRef, () -> {
-            loaderCallCount.incrementAndGet();
-            return initialValue;
-        });
-
-        // Wait for initial load to complete
-        await().atMost(1, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1CacheProvider, times(1)).put(key, initialValue);
-        });
-
-        // Invalidate
-        cacheService.invalidate(key);
-
-        // Wait for invalidation
-        await().atMost(1, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1CacheProvider, times(1)).evict(key);
-            verify(l2CacheProvider, times(1)).evict(key);
-        });
-
-        // Reset mocks to ensure fresh cache miss on reload
-        reset(l1CacheProvider, l2CacheProvider);
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-
-        // Reload
-        String result2 = cacheService.getOrLoad(key, typeRef, () -> {
-            loaderCallCount.incrementAndGet();
-            return reloadedValue;
-        });
-
-        // Then
-        assertThat(result1).isEqualTo(initialValue);
-        assertThat(result2).isEqualTo(reloadedValue);
-        assertThat(loaderCallCount.get()).isEqualTo(2);
-
-        // Wait for reload storage
-        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1CacheProvider, times(1)).put(key, reloadedValue);
-            verify(l2CacheProvider, times(1)).put(key, reloadedValue);
-        });
-    }
-
-    @Test
-    void shouldHandleCacheProviderExceptions() {
-        // Given
-        String key = "exception-handling-key";
-        String value = "Exception Test Value - " + UUID.randomUUID();
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
-
-        // Configure mock behavior - L1 throws exception, L2 works normally
-        when(l1CacheProvider.get(eq(key), eq(typeRef))).thenThrow(new RuntimeException("L1 Cache Error"));
-        when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-        doThrow(new RuntimeException("L1 Put Error")).when(l1CacheProvider).put(key, value);
-
-        // When - Should not fail despite L1 exceptions
-        String result = cacheService.getOrLoad(key, typeRef, () -> value);
-
-        // Then
-        assertThat(result).isEqualTo(value);
-
-        // Wait for async operations (L2 should still work)
-        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l2CacheProvider, times(1)).put(key, value);
-        });
-    }
-
-    @Test
-    void shouldRespectCustomAsyncConfiguration() {
-        // Given - Test that we can handle multiple concurrent operations within the configured pool size
-        String keyPrefix = "pool-test-";
-        int operationCount = 10; // More than core pool size (2) to test queue handling
-        AtomicInteger successfulOperations = new AtomicInteger(0);
-        ParameterizedTypeReference<String> typeRef = new ParameterizedTypeReference<String>() {};
-
-        // Configure mock behavior
-        for (int i = 0; i < operationCount; i++) {
-            String key = keyPrefix + i;
-            when(l1CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
-            when(l2CacheProvider.get(eq(key), eq(typeRef))).thenReturn(null);
+            assertThat(result).isEqualTo(reloadedValue);
+            assertThat(loaderCallCount.get()).isEqualTo(2);
+            await().untilAsserted(() -> verify(l1CacheProvider).put(KEY, reloadedValue));
         }
+    }
 
-        // When - Execute operations that will test the thread pool
-        CompletableFuture<Void> allOperations = CompletableFuture.allOf(
-                IntStream.range(0, operationCount)
-                        .mapToObj(i -> CompletableFuture.supplyAsync(() -> {
-                            String key = keyPrefix + i;
-                            String value = "Pool Test Value " + i;
-                            return cacheService.getOrLoad(key, typeRef, () -> {
-                                successfulOperations.incrementAndGet();
-                                return value;
+    @Nested
+    @DisplayName("Async and Concurrency")
+    class AsyncAndConcurrency {
+        @Test
+        @DisplayName("should handle concurrent loads using the custom thread pool")
+        void shouldHandleConcurrentLoads() {
+            int operationCount = 10; // More than corePoolSize to test queuing
+            List<CompletableFuture<Void>> futures =
+                    IntStream.range(0, operationCount)
+                            .mapToObj(
+                                    i ->
+                                            CompletableFuture.runAsync(
+                                                    () -> {
+                                                        String key = "concurrent-key-" + i;
+                                                        cacheService.getOrLoad(key, TYPE_REF, () -> "value-" + i);
+                                                    }))
+                            .collect(Collectors.toList());
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+            await()
+                    .atMost(5, TimeUnit.SECONDS)
+                    .untilAsserted(
+                            () -> {
+                                verify(l1CacheProvider, times(operationCount)).put(anyString(), anyString());
+                                verify(l2CacheProvider, times(operationCount)).put(anyString(), anyString());
                             });
-                        }))
-                        .toArray(CompletableFuture[]::new)
-        );
+        }
+    }
 
-        // Wait for completion
-        allOperations.join();
+    @Nested
+    @DisplayName("Resilience and Error Handling")
+    class Resilience {
+        @Test
+        @DisplayName("should fallback to loader when cache providers fail")
+        void shouldFallbackToLoader_whenCacheProvidersFail() {
+            when(l1CacheProvider.get(eq(KEY), any())).thenThrow(new RuntimeException("L1 Read Error"));
+            doThrow(new RuntimeException("L1 Write Error")).when(l1CacheProvider).put(anyString(), anyString());
 
-        // Then
-        assertThat(successfulOperations.get()).isEqualTo(operationCount);
+            String result = cacheService.getOrLoad(KEY, TYPE_REF, () -> VALUE);
 
-        // All operations should complete successfully within reasonable time
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(l1CacheProvider, times(operationCount)).put(anyString(), any());
-            verify(l2CacheProvider, times(operationCount)).put(anyString(), any());
-        });
+            assertThat(result).isEqualTo(VALUE);
+            // Verify it still attempts the async write to L2 even if L1 fails
+            await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> verify(l2CacheProvider).put(KEY, VALUE));
+        }
     }
 }
