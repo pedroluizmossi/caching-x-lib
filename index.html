@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
-    <!-- Lucide Icons (CORRIGIDO) -->
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 
     <!-- ScrollReveal.js for animations -->
@@ -21,10 +21,8 @@
 
     <!-- Prism.js for Syntax Highlighting -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
 
     <style>
         body {
@@ -53,7 +51,7 @@
             border-color: rgba(56, 189, 248, 0.4);
             box-shadow: 0 20px 40px -10px rgba(56, 189, 248, 0.1);
         }
-        .code-block {
+        .code-block-container {
             background-color: #1e293b; /* Fundo do bloco de código */
             border: 1px solid #334155;
         }
@@ -66,7 +64,7 @@
             border-bottom-color: #38bdf8;
         }
         .hero-bg {
-            background-image: radial-gradient(circle at 50% 30%, rgba(56, 189, 248, 0.1), transparent 50%);
+            background-image: radial-gradient(circle at 50% 30%, rgba(56, 189, 248, 0.1), transparent 60%);
         }
         .grid-bg {
             background-image:
@@ -79,175 +77,211 @@
             background: transparent !important;
             padding: 1.25rem !important;
             margin: 0 !important;
+            padding-top: 3.5rem !important; /* Space for copy button */
+        }
+        .copy-btn {
+            transition: all 0.2s ease;
         }
     </style>
 </head>
 <body class="antialiased">
 
     <!-- Header -->
-    <header class="relative overflow-hidden hero-bg">
-        <div class="absolute inset-0 grid-bg opacity-50"></div>
-        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-[#020617]"></div>
-        <div class="container mx-auto px-6 py-24 md:py-32 relative z-10">
-            <nav class="flex justify-between items-center mb-20">
-                <div class="text-2xl font-bold tracking-tighter">
+    <header class="fixed top-0 left-0 right-0 z-50 bg-slate-900/60 backdrop-blur-lg border-b border-slate-800/50">
+        <div class="container mx-auto px-6">
+            <nav class="flex justify-between items-center h-16">
+                <a href="#" class="text-2xl font-bold tracking-tighter">
                     Caching<span class="gradient-text">-X</span>
+                </a>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#features" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Funcionalidades</a>
+                    <a href="#architecture" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Arquitetura</a>
+                    <a href="#quick-start" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Início Rápido</a>
+                    <a href="https://github.com/pedroluizmossi/caching-x-lib/wiki" target="_blank" class="text-sm font-medium text-slate-300 hover:text-white transition-colors flex items-center space-x-1">
+                        <span>Documentação</span>
+                        <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                    </a>
                 </div>
                 <a href="https://github.com/pedroluizmossi/caching-x-lib" target="_blank" class="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors group">
                     <i data-lucide="github" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-                    <span class="hidden md:inline">Ver no GitHub</span>
+                    <span class="hidden md:inline text-sm font-medium">GitHub</span>
                 </a>
             </nav>
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter mb-6 leading-tight">
-                    Performance e Resiliência. <br><span class="gradient-text">Simplificados.</span>
-                </h1>
-                <p class="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10">
-                    Caching-X é uma biblioteca de cache multi-nível para Java que combina a velocidade do cache em memória com a escalabilidade do cache distribuído, de forma inteligente e pronta para produção.
-                </p>
-                <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                    <a href="#quick-start" class="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg shadow-sky-500/20 flex items-center justify-center space-x-2">
-                        <i data-lucide="rocket" class="w-5 h-5"></i>
-                        <span>Início Rápido</span>
-                    </a>
-                    <a href="#features" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-8 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center space-x-2">
-                        <i data-lucide="layout-grid" class="w-5 h-5"></i>
-                        <span>Ver Funcionalidades</span>
-                    </a>
-                </div>
-            </div>
         </div>
     </header>
 
-    <main class="container mx-auto px-6 py-20">
-
-        <!-- Por que Caching-X? -->
-        <section id="why" class="py-20">
-            <div class="text-center mb-16">
-                <h2 class="text-4xl font-bold tracking-tighter">Por que Caching-X?</h2>
-                <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Abstraímos a complexidade para que você possa focar no que realmente importa: o seu produto.</p>
-            </div>
-            <div class="grid md:grid-cols-3 gap-8">
-                <div class="reveal-card p-8 glass-card rounded-2xl text-center">
-                    <div class="inline-block p-4 bg-sky-500/10 rounded-xl mb-4 border border-sky-500/20">
-                        <i data-lucide="zap" class="text-sky-400 w-8 h-8"></i>
+    <main>
+        <!-- Hero Section -->
+        <section class="relative overflow-hidden hero-bg pt-16">
+            <div class="absolute inset-0 grid-bg opacity-50"></div>
+            <div class="absolute inset-0 bg-gradient-to-b from-transparent to-[#020617]"></div>
+            <div class="container mx-auto px-6 py-24 md:py-32 relative z-10">
+                <div class="max-w-4xl mx-auto text-center">
+                    <h1 class="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter mb-6 leading-tight">
+                        Performance e Resiliência. <br><span class="gradient-text">Simplificados.</span>
+                    </h1>
+                    <p class="text-lg md:text-xl text-slate-400 max-w-3xl mx-auto mb-10">
+                        Caching-X é uma biblioteca de cache multi-nível para Java que combina a velocidade do cache em memória com a escalabilidade do cache distribuído, de forma inteligente e pronta para produção.
+                    </p>
+                    <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                        <a href="#quick-start" class="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg shadow-sky-500/20 flex items-center justify-center space-x-2">
+                            <i data-lucide="rocket" class="w-5 h-5"></i>
+                            <span>Início Rápido</span>
+                        </a>
+                        <a href="#features" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-8 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center space-x-2">
+                            <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                            <span>Ver Funcionalidades</span>
+                        </a>
                     </div>
-                    <h3 class="text-xl font-bold mb-2">Performance sem Esforço</h3>
-                    <p class="text-slate-400">Obtenha a velocidade de um cache L1 e a escalabilidade de um L2 sem o custo de implementação.</p>
-                </div>
-                <div class="reveal-card p-8 glass-card rounded-2xl text-center">
-                     <div class="inline-block p-4 bg-purple-500/10 rounded-xl mb-4 border border-purple-500/20">
-                        <i data-lucide="shield-check" class="text-purple-400 w-8 h-8"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2">Construído para Resiliência</h3>
-                    <p class="text-slate-400">Sua aplicação permanece estável mesmo com falhas, graças à proteção com Circuit Breaker.</p>
-                </div>
-                <div class="reveal-card p-8 glass-card rounded-2xl text-center">
-                     <div class="inline-block p-4 bg-emerald-500/10 rounded-xl mb-4 border border-emerald-500/20">
-                        <i data-lucide="code-xml" class="text-emerald-400 w-8 h-8"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2">API Focada no Dev</h3>
-                    <p class="text-slate-400">Uma API limpa e intuitiva com cache declarativo via `@CacheX` e total segurança de tipos.</p>
                 </div>
             </div>
         </section>
 
-        <!-- Funcionalidades Principais -->
-        <section id="features" class="py-20">
-            <div class="text-center mb-16">
-                <h2 class="text-4xl font-bold tracking-tighter">Funcionalidades de Ponta</h2>
-                <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Tudo o que você precisa para uma estratégia de cache robusta e moderna.</p>
-            </div>
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Feature Cards -->
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-sky-400/0 hover:border-sky-400/40">
-                    <i data-lucide="layers-3" class="mb-3 text-sky-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Cache Multi-Nível</h3>
-                    <p class="text-sm text-slate-400">Combina um cache L1 (Caffeine) e L2 (Redis) para performance otimizada.</p>
+        <div class="container mx-auto px-6 py-20">
+            <!-- Por que Caching-X? -->
+            <section id="why" class="py-20">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold tracking-tighter">Por que Caching-X?</h2>
+                    <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Abstraímos a complexidade para que você possa focar no que realmente importa: o seu produto.</p>
                 </div>
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-sky-400/0 hover:border-sky-400/40">
-                    <i data-lucide="at-sign" class="mb-3 text-sky-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Suporte a Anotações</h3>
-                    <p class="text-sm text-slate-400">Cache declarativo e limpo com a anotação `@CacheX` e suporte a SpEL.</p>
-                </div>
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-sky-400/0 hover:border-sky-400/40">
-                    <i data-lucide="arrow-up-circle" class="mb-3 text-sky-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Promoção Inteligente</h3>
-                    <p class="text-sm text-slate-400">Promove automaticamente hits do L2 para o L1, acelerando acessos futuros.</p>
-                </div>
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-orange-400/0 hover:border-orange-400/40">
-                    <i data-lucide="radio-tower" class="mb-3 text-orange-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Invalidação Distribuída</h3>
-                    <p class="text-sm text-slate-400">Mantém a consistência dos dados entre instâncias com Redis Pub/Sub.</p>
-                </div>
-                 <div class="reveal-card feature-card p-6 glass-card rounded-xl border-purple-400/0 hover:border-purple-400/40">
-                    <i data-lucide="pilcrow" class="mb-3 text-purple-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Segurança de Tipos</h3>
-                    <p class="text-sm text-slate-400">API genérica que usa `ParameterizedTypeReference` para evitar `ClassCastException`.</p>
-                </div>
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-red-400/0 hover:border-red-400/40">
-                    <i data-lucide="shield-alert" class="mb-3 text-red-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Circuit Breaker Integrado</h3>
-                    <p class="text-sm text-slate-400">Protege contra falhas no L2 (Redis), garantindo a estabilidade da aplicação.</p>
-                </div>
-                 <div class="reveal-card feature-card p-6 glass-card rounded-xl border-emerald-400/0 hover:border-emerald-400/40">
-                    <i data-lucide="bar-chart-3" class="mb-3 text-emerald-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Métricas e Observabilidade</h3>
-                    <p class="text-sm text-slate-400">Métricas granulares via Micrometer para monitoramento em tempo real.</p>
-                </div>
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-emerald-400/0 hover:border-emerald-400/40">
-                    <i data-lucide="plug-zap" class="mb-3 text-emerald-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Integração com Spring Boot</h3>
-                    <p class="text-sm text-slate-400">Auto-configuração completa que funciona "out-of-the-box".</p>
-                </div>
-                <div class="reveal-card feature-card p-6 glass-card rounded-xl border-purple-400/0 hover:border-purple-400/40">
-                    <i data-lucide="file-json-2" class="mb-3 text-purple-400 w-7 h-7"></i>
-                    <h3 class="font-bold text-lg">Cache de Nulos</h3>
-                    <p class="text-sm text-slate-400">Previne "cache stampedes" ao armazenar respostas nulas da fonte de dados.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Arquitetura -->
-        <section id="architecture" class="py-20">
-            <div class="text-center mb-16">
-                <h2 class="text-4xl font-bold tracking-tighter">Arquitetura Inteligente</h2>
-                <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Fluxos de dados otimizados para máxima performance e consistência.</p>
-            </div>
-            <div class="glass-card rounded-2xl p-4 md:p-8">
-                <div class="flex justify-center border-b border-slate-700 mb-8">
-                    <button id="read-flow-btn" class="tab-button active py-3 px-6 font-semibold">Fluxo de Leitura</button>
-                    <button id="invalidation-flow-btn" class="tab-button py-3 px-6 font-semibold text-slate-400">Fluxo de Invalidação</button>
-                </div>
-                <div id="flow-content">
-                    <div id="read-flow-diagram"></div>
-                    <div id="invalidation-flow-diagram" class="hidden"></div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Quick Start -->
-        <section id="quick-start" class="py-20">
-             <div class="text-center mb-16">
-                <h2 class="text-4xl font-bold tracking-tighter">Comece a Usar em Minutos</h2>
-                <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Integre Caching-X ao seu projeto Spring Boot de forma simples e rápida.</p>
-            </div>
-            <div class="grid lg:grid-cols-2 gap-10 items-start">
-                <div class="space-y-8">
-                    <div class="reveal-card">
-                        <h3 class="text-2xl font-bold mb-3 flex items-center"><span class="text-sky-400 mr-3 text-3xl font-black">1</span> Adicione a Dependência</h3>
-                        <div class="code-block rounded-lg overflow-hidden">
-                            <pre class="language-markup"><code><dependency>
-    <groupId>com.pedromossi</groupId>
-    <artifactId>caching-spring-boot-starter</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency></code></pre>
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="reveal-card p-8 glass-card rounded-2xl text-center">
+                        <div class="inline-block p-4 bg-sky-500/10 rounded-xl mb-4 border border-sky-500/20">
+                            <i data-lucide="zap" class="text-sky-400 w-8 h-8"></i>
                         </div>
+                        <h3 class="text-xl font-bold mb-2">Performance sem Esforço</h3>
+                        <p class="text-slate-400">Obtenha a velocidade de um cache L1 e a escalabilidade de um L2 sem o custo de implementação.</p>
                     </div>
-                    <div class="reveal-card">
-                        <h3 class="text-2xl font-bold mb-3 flex items-center"><span class="text-sky-400 mr-3 text-3xl font-black">2</span> Configure o `application.yml`</h3>
-                         <div class="code-block rounded-lg overflow-hidden">
-                            <pre class="language-yaml"><code>caching:
+                    <div class="reveal-card p-8 glass-card rounded-2xl text-center">
+                         <div class="inline-block p-4 bg-purple-500/10 rounded-xl mb-4 border border-purple-500/20">
+                            <i data-lucide="shield-check" class="text-purple-400 w-8 h-8"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">Construído para Resiliência</h3>
+                        <p class="text-slate-400">Sua aplicação permanece estável mesmo com falhas, graças à proteção com Circuit Breaker.</p>
+                    </div>
+                    <div class="reveal-card p-8 glass-card rounded-2xl text-center">
+                         <div class="inline-block p-4 bg-emerald-500/10 rounded-xl mb-4 border border-emerald-500/20">
+                            <i data-lucide="code-xml" class="text-emerald-400 w-8 h-8"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">API Focada no Dev</h3>
+                        <p class="text-slate-400">Uma API limpa e intuitiva com cache declarativo via `@CacheX` e total segurança de tipos.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Funcionalidades Principais -->
+            <section id="features" class="py-20">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold tracking-tighter">Funcionalidades de Ponta</h2>
+                    <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Tudo o que você precisa para uma estratégia de cache robusta e moderna.</p>
+                </div>
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Feature Cards -->
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="layers-3" class="mb-3 text-sky-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Cache Multi-Nível</h3>
+                        <p class="text-sm text-slate-400">Combina um cache L1 (Caffeine) e L2 (Redis) para performance otimizada.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="at-sign" class="mb-3 text-sky-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Anotação `@CacheX`</h3>
+                        <p class="text-sm text-slate-400">Cache declarativo e limpo com suporte a SpEL para chaves dinâmicas.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="shield-alert" class="mb-3 text-red-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Circuit Breaker</h3>
+                        <p class="text-sm text-slate-400">Protege contra falhas no L2, garantindo a estabilidade da sua aplicação.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="radio-tower" class="mb-3 text-orange-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Invalidação Distribuída</h3>
+                        <p class="text-sm text-slate-400">Mantém a consistência dos dados entre instâncias com Redis Pub/Sub.</p>
+                    </div>
+                     <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="bar-chart-3" class="mb-3 text-emerald-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Métricas Detalhadas</h3>
+                        <p class="text-sm text-slate-400">Métricas granulares via Micrometer para monitoramento em tempo real.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="terminal-square" class="mb-3 text-emerald-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Endpoint Actuator</h3>
+                        <p class="text-sm text-slate-400">Inspecione e gerencie seus caches em tempo de execução via `/actuator/cachex`.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="plug-zap" class="mb-3 text-indigo-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Auto-configuração</h3>
+                        <p class="text-sm text-slate-400">Integração perfeita com Spring Boot que funciona "out-of-the-box".</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="pilcrow" class="mb-3 text-purple-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Segurança de Tipos</h3>
+                        <p class="text-sm text-slate-400">API genérica que evita `ClassCastException` em tempo de execução.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="file-json-2" class="mb-3 text-purple-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Cache de Nulos</h3>
+                        <p class="text-sm text-slate-400">Previne "cache stampedes" ao armazenar respostas nulas da fonte de dados.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="arrow-up-circle" class="mb-3 text-sky-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Promoção Inteligente</h3>
+                        <p class="text-sm text-slate-400">Promove automaticamente hits do L2 para o L1, acelerando acessos futuros.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="puzzle" class="mb-3 text-indigo-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Arquitetura Extensível</h3>
+                        <p class="text-sm text-slate-400">Design modular que permite a implementação de novos provedores de cache.</p>
+                    </div>
+                    <div class="reveal-card feature-card p-6 glass-card rounded-xl">
+                        <i data-lucide="users-round" class="mb-3 text-orange-400 w-7 h-7"></i>
+                        <h3 class="font-bold text-lg">Proteção contra Stampede</h3>
+                        <p class="text-sm text-slate-400">Mecanismos internos evitam múltiplas chamadas à fonte de dados para a mesma chave.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Arquitetura -->
+            <section id="architecture" class="py-20">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold tracking-tighter">Arquitetura Inteligente</h2>
+                    <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Fluxos de dados otimizados para máxima performance e consistência.</p>
+                </div>
+                <div class="glass-card rounded-2xl p-4 md:p-8">
+                    <div class="flex justify-center border-b border-slate-700 mb-8">
+                        <button id="read-flow-btn" class="tab-button active py-3 px-6 font-semibold">Fluxo de Leitura</button>
+                        <button id="invalidation-flow-btn" class="tab-button py-3 px-6 font-semibold text-slate-400">Fluxo de Invalidação</button>
+                    </div>
+                    <div id="flow-content">
+                        <div id="read-flow-diagram"></div>
+                        <div id="invalidation-flow-diagram" class="hidden"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Start -->
+            <section id="quick-start" class="py-20">
+                 <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold tracking-tighter">Comece a Usar em Minutos</h2>
+                    <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Integre Caching-X ao seu projeto Spring Boot de forma simples e rápida.</p>
+                </div>
+                <div class="grid lg:grid-cols-2 gap-10 items-start">
+                    <div class="space-y-8">
+                        <div class="reveal-card">
+                            <h3 class="text-2xl font-bold mb-3 flex items-center"><span class="text-sky-400 mr-3 text-3xl font-black">1</span> Adicione a Dependência</h3>
+                            <div class="code-block-container rounded-lg overflow-hidden relative">
+                                <button class="copy-btn absolute top-3 right-3 p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                                <pre class="language-markup"><code>&lt;dependency&gt;
+    &lt;groupId&gt;com.pedromossi&lt;/groupId&gt;
+    &lt;artifactId&gt;caching-spring-boot-starter&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+                            </div>
+                        </div>
+                        <div class="reveal-card">
+                            <h3 class="text-2xl font-bold mb-3 flex items-center"><span class="text-sky-400 mr-3 text-3xl font-black">2</span> Configure o `application.yml`</h3>
+                             <div class="code-block-container rounded-lg overflow-hidden relative">
+                                <button class="copy-btn absolute top-3 right-3 p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                                <pre class="language-yaml"><code>caching:
   l1:
     enabled: true
     spec: "maximumSize=1000,expireAfterWrite=5m"
@@ -260,18 +294,20 @@ spring:
     redis:
       host: localhost
       port: 6379</code></pre>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="reveal-card">
-                     <h3 class="text-2xl font-bold mb-4 flex items-center"><span class="text-sky-400 mr-3 text-3xl font-black">3</span> Use em seu Código</h3>
-                     <div class="glass-card rounded-xl overflow-hidden">
-                        <div class="flex border-b border-slate-700 bg-slate-900/50">
-                            <button data-target="code-annotation" class="code-tab active flex-1 p-3 font-semibold text-sm">Via Anotação (@CacheX)</button>
-                            <button data-target="code-programmatic" class="code-tab flex-1 p-3 font-semibold text-sm text-slate-400">Via API (CacheService)</button>
-                        </div>
-                        <div id="code-annotation" class="code-content">
-                            <pre class="language-java"><code>@Service
+                    <div class="reveal-card">
+                         <h3 class="text-2xl font-bold mb-4 flex items-center"><span class="text-sky-400 mr-3 text-3xl font-black">3</span> Use em seu Código</h3>
+                         <div class="glass-card rounded-xl overflow-hidden">
+                            <div class="flex border-b border-slate-700 bg-slate-900/50">
+                                <button data-target="code-annotation" class="code-tab active flex-1 p-3 font-semibold text-sm text-sky-400">Via Anotação</button>
+                                <button data-target="code-programmatic" class="code-tab flex-1 p-3 font-semibold text-sm text-slate-400">Via API</button>
+                            </div>
+                            <div class="relative">
+                                <button class="copy-btn absolute top-3 right-3 p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-slate-300 z-10"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                                <div id="code-annotation" class="code-content">
+                                    <pre class="language-java"><code>@Service
 public class ProductService {
     
     @CacheX(key = "'product:' + #productId")
@@ -288,9 +324,9 @@ public class ProductService {
         productRepository.save(product);
     }
 }</code></pre>
-                        </div>
-                        <div id="code-programmatic" class="code-content hidden">
-                            <pre class="language-java"><code>@Service
+                                </div>
+                                <div id="code-programmatic" class="code-content hidden">
+                                    <pre class="language-java"><code>@Service
 public class ProductService {
     
     @Autowired
@@ -310,54 +346,127 @@ public class ProductService {
         cacheService.invalidate("product:" + product.getId());
     }
 }</code></pre>
-                        </div>
-                     </div>
+                                </div>
+                            </div>
+                           </div>
+                    </div>
                 </div>
-            </div>
-        </section>
-        
-        <!-- Resilience Section -->
-        <section id="resilience" class="py-20">
-            <div class="grid lg:grid-cols-2 gap-12 items-center">
-                <div class="reveal-card">
-                    <h2 class="text-4xl font-bold tracking-tighter mb-4">Resiliência é Padrão</h2>
-                    <p class="text-slate-400 mb-6">Caching-X protege sua aplicação contra falhas no cache L2 (Redis). Quando o Circuit Breaker detecta instabilidade, ele "abre" para evitar que sua aplicação trave, fazendo um fallback gracioso para o cache L1 e a fonte de dados. A recuperação é automática.</p>
-                    <div class="space-y-4">
-                        <div class="flex items-start space-x-4">
-                            <i data-lucide="check-circle-2" class="text-emerald-400 mt-1 flex-shrink-0 w-5 h-5"></i>
-                            <div>
-                                <h4 class="font-semibold">Degradação Graciosa</h4>
-                                <p class="text-sm text-slate-500">A aplicação continua funcionando, apenas com o cache L2 temporariamente desativado.</p>
+            </section>
+            
+            <!-- Resilience Section -->
+            <section id="resilience" class="py-20">
+                <div class="grid lg:grid-cols-2 gap-12 items-center">
+                    <div class="reveal-card">
+                        <h2 class="text-4xl font-bold tracking-tighter mb-4">Resiliência é Padrão</h2>
+                        <p class="text-slate-400 mb-6">Caching-X protege sua aplicação contra falhas no cache L2 (Redis). Quando o Circuit Breaker detecta instabilidade, ele "abre" para evitar que sua aplicação trave, fazendo um fallback gracioso para o cache L1 e a fonte de dados. A recuperação é automática.</p>
+                        <div class="space-y-4">
+                            <div class="flex items-start space-x-4">
+                                <i data-lucide="check-circle-2" class="text-emerald-400 mt-1 flex-shrink-0 w-5 h-5"></i>
+                                <div>
+                                    <h4 class="font-semibold">Degradação Graciosa</h4>
+                                    <p class="text-sm text-slate-500">A aplicação continua funcionando, apenas com o cache L2 temporariamente desativado.</p>
+                                </div>
                             </div>
-                        </div>
-                         <div class="flex items-start space-x-4">
-                            <i data-lucide="check-circle-2" class="text-emerald-400 mt-1 flex-shrink-0 w-5 h-5"></i>
-                            <div>
-                                <h4 class="font-semibold">Fail-Fast Imediato</h4>
-                                <p class="text-sm text-slate-500">Evita que threads fiquem presas esperando por um serviço indisponível.</p>
+                             <div class="flex items-start space-x-4">
+                                <i data-lucide="check-circle-2" class="text-emerald-400 mt-1 flex-shrink-0 w-5 h-5"></i>
+                                <div>
+                                    <h4 class="font-semibold">Fail-Fast Imediato</h4>
+                                    <p class="text-sm text-slate-500">Evita que threads fiquem presas esperando por um serviço indisponível.</p>
+                                </div>
                             </div>
-                        </div>
-                         <div class="flex items-start space-x-4">
-                            <i data-lucide="check-circle-2" class="text-emerald-400 mt-1 flex-shrink-0 w-5 h-5"></i>
-                            <div>
-                                <h4 class="font-semibold">Recuperação Automática</h4>
-                                <p class="text-sm text-slate-500">Testa periodicamente a conexão e reativa o cache L2 quando o serviço se estabiliza.</p>
+                             <div class="flex items-start space-x-4">
+                                <i data-lucide="check-circle-2" class="text-emerald-400 mt-1 flex-shrink-0 w-5 h-5"></i>
+                                <div>
+                                    <h4 class="font-semibold">Recuperação Automática</h4>
+                                    <p class="text-sm text-slate-500">Testa periodicamente a conexão e reativa o cache L2 quando o serviço se estabiliza.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
+                    <div id="circuit-breaker-viz" class="reveal-card glass-card rounded-2xl p-6 flex flex-col items-center justify-center min-h-[400px]">
+                        <!-- Circuit Breaker Visualization -->
+                    </div>
                 </div>
-                <div id="circuit-breaker-viz" class="reveal-card glass-card rounded-2xl p-6 flex flex-col items-center justify-center min-h-[350px]">
-                    <!-- Circuit Breaker Visualization -->
+            </section>
+
+            <!-- Observability Section -->
+            <section id="observability" class="py-20">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold tracking-tighter">Observabilidade Completa</h2>
+                    <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Monitore, inspecione e gerencie seus caches com integrações nativas.</p>
                 </div>
-            </div>
-        </section>
+                <div class="grid lg:grid-cols-2 gap-8 items-start">
+                    <div class="reveal-card">
+                        <h3 class="text-2xl font-bold mb-4 flex items-center space-x-3">
+                            <i data-lucide="bar-chart-3" class="text-emerald-400 w-7 h-7"></i>
+                            <span>Métricas com Micrometer</span>
+                        </h3>
+                        <p class="text-slate-400 mb-4">Exponha métricas detalhadas de ambos os níveis de cache para seu sistema de monitoramento (ex: Prometheus).</p>
+                        <div class="code-block-container rounded-lg overflow-hidden relative">
+                            <button class="copy-btn absolute top-3 right-3 p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                            <pre class="language-text"><code># Métricas para Cache L1
+cache_gets_seconds_count{cache="l1Cache",result="hit",} 10520.0
+cache_gets_seconds_count{cache="l1Cache",result="miss",} 341.0
+cache_puts_seconds_count{cache="l1Cache",} 341.0
+cache_size{cache="l1Cache",} 512.0
+
+# Métricas para Cache L2
+cache_gets_seconds_count{cache="l2Cache",result="hit",} 310.0
+cache_gets_seconds_count{cache="l2Cache",result="miss",} 31.0
+...e muito mais.</code></pre>
+                        </div>
+                    </div>
+                    <div class="reveal-card">
+                        <h3 class="text-2xl font-bold mb-4 flex items-center space-x-3">
+                            <i data-lucide="terminal-square" class="text-emerald-400 w-7 h-7"></i>
+                            <span>Endpoint Spring Actuator</span>
+                        </h3>
+                        <p class="text-slate-400 mb-4">Use o endpoint <code>/actuator/cachex</code> para ver estatísticas e limpar caches em tempo de execução.</p>
+                        <div class="code-block-container rounded-lg overflow-hidden relative">
+                            <button class="copy-btn absolute top-3 right-3 p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                            <pre class="language-json"><code>{
+  "l1Cache": {
+    "provider": "Caffeine",
+    "hitCount": 10520,
+    "missCount": 341,
+    "hitRate": "96.86%",
+    "estimatedSize": 512
+  },
+  "l2Cache": {
+    "provider": "Redis",
+    "hitCount": 310,
+    "missCount": 31,
+    "hitRate": "90.91%",
+    "circuitBreakerState": "CLOSED"
+  }
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CTA to Docs -->
+            <section id="documentation-cta" class="py-20">
+                <div class="reveal-card glass-card rounded-2xl p-12 text-center relative overflow-hidden">
+                     <div class="absolute -top-1/2 -left-1/4 w-full h-[200%] bg-sky-500/10 -rotate-12"></div>
+                    <div class="relative z-10">
+                        <h2 class="text-3xl font-bold tracking-tighter mb-4">Pronto para se Aprofundar?</h2>
+                        <p class="text-slate-400 max-w-xl mx-auto mb-8">Nossa documentação completa na Wiki do GitHub tem tudo o que você precisa: guias de configuração avançada, exemplos de uso e explicações detalhadas da arquitetura.</p>
+                        <a href="https://github.com/pedroluizmossi/caching-x-lib/wiki" target="_blank" class="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg shadow-sky-500/20 inline-flex items-center justify-center space-x-2">
+                            <i data-lucide="book-open-text" class="w-5 h-5"></i>
+                            <span>Explorar a Documentação</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
     </main>
 
     <!-- Footer -->
     <footer class="border-t border-slate-800">
         <div class="container mx-auto px-6 py-8 text-center text-slate-500">
-            <p>Projetado e construído com ❤️ por <span class="gradient-text">Pedro Mossi</span></p>
-            <a href="https://github.com/pedroluizmossi/caching-x-lib" target="_blank" class="text-sky-500 hover:underline mt-2 inline-block">Ver Projeto no GitHub</a>
+            <p>Projetado e construído com ❤️ por <a href="https://github.com/pedroluizmossi" target="_blank" class="gradient-text font-semibold hover:brightness-125 transition">Pedro Mossi</a></p>
+            <a href="https://github.com/pedroluizmossi/caching-x-lib" target="_blank" class="text-sky-500 hover:underline mt-2 inline-block text-sm">Ver Projeto no GitHub</a>
         </div>
     </footer>
 
@@ -384,13 +493,15 @@ public class ProductService {
                 tab.addEventListener('click', () => {
                     const targetId = tab.dataset.target;
                     const parent = tab.closest('.glass-card, .reveal-card');
-                    parent.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active', 'text-sky-400'));
-                    parent.querySelectorAll('.code-tab').forEach(t => t.classList.add('text-slate-400'));
+                    parent.querySelectorAll('.code-tab').forEach(t => {
+                        t.classList.remove('active', 'text-sky-400');
+                        t.classList.add('text-slate-400');
+                    });
                     parent.querySelectorAll('.code-content').forEach(c => c.classList.add('hidden'));
 
                     tab.classList.add('active', 'text-sky-400');
                     tab.classList.remove('text-slate-400');
-                    document.getElementById(targetId).classList.remove('hidden');
+                    parent.querySelector(`#${targetId}`).classList.remove('hidden');
                 });
             });
 
@@ -418,27 +529,27 @@ public class ProductService {
 
             // --- Renderização dos diagramas visuais ---
             const createDiagramNode = (name, icon, color = 'white') => `
-                <div class="flex flex-col items-center text-center w-24">
-                    <div class="p-3 bg-slate-700/50 rounded-full border-2 border-slate-600">${icon}</div>
-                    <p class="mt-2 text-xs font-semibold text-${color}">${name}</p>
+                <div class="flex flex-col items-center text-center w-28">
+                    <div class="p-4 bg-slate-700/50 rounded-full border-2 border-slate-600 mb-2">${icon}</div>
+                    <p class="text-xs font-semibold text-${color}">${name}</p>
                 </div>`;
             
-            const createArrow = (text, color = 'slate-400') => `
+            const createArrow = (text, color = 'slate-400', dashed = false) => `
                 <div class="flex-1 flex items-center justify-center relative mx-2">
-                    <div class="w-full h-0.5 bg-slate-700"></div>
+                    <div class="w-full h-0.5 ${dashed ? 'bg-transparent' : 'bg-slate-700'} ${dashed ? 'border-t-2 border-dashed border-slate-600' : ''}"></div>
                     <i data-lucide="chevron-right" class="absolute bg-[#0f172a] px-1 text-${color} w-5 h-5"></i>
                     ${text ? `<span class="absolute -bottom-5 text-xs text-${color} font-medium bg-[#0f172a] px-1 rounded">${text}</span>` : ''}
                 </div>`;
 
             const readFlowHTML = `
-                <div class="flex items-center justify-between w-full flex-wrap gap-y-10">
-                    ${createDiagramNode('Aplicação', '<i data-lucide="laptop" class="text-white"></i>')}
+                <div class="flex items-start justify-between w-full flex-wrap gap-y-10">
+                    ${createDiagramNode('Aplicação', '<i data-lucide="laptop" class="text-white w-7 h-7"></i>')}
                     ${createArrow('get("key")')}
-                    ${createDiagramNode('Cache L1', '<i data-lucide="cpu" class="text-sky-400"></i>', 'sky-400')}
-                    ${createArrow('Miss', 'red-400')}
-                    ${createDiagramNode('Cache L2', '<i data-lucide="database" class="text-purple-400"></i>', 'purple-400')}
-                    ${createArrow('Miss', 'red-400')}
-                    ${createDiagramNode('Fonte de Dados', '<i data-lucide="server" class="text-emerald-400"></i>', 'emerald-400')}
+                    ${createDiagramNode('Cache L1 (Memória)', '<i data-lucide="cpu" class="text-sky-400 w-7 h-7"></i>', 'sky-400')}
+                    ${createArrow('Miss L1', 'red-400')}
+                    ${createDiagramNode('Cache L2 (Redis)', '<i data-lucide="database" class="text-purple-400 w-7 h-7"></i>', 'purple-400')}
+                    ${createArrow('Miss L2', 'red-400')}
+                    ${createDiagramNode('Fonte de Dados', '<i data-lucide="server" class="text-emerald-400 w-7 h-7"></i>', 'emerald-400')}
                 </div>
                 <div class="mt-12 text-center text-sm text-slate-400 space-y-2">
                     <p><span class="text-sky-400 font-semibold">Hit L1:</span> Retorno imediato, velocidade máxima.</p>
@@ -447,17 +558,17 @@ public class ProductService {
                 </div>`;
 
             const invalidationFlowHTML = `
-                <div class="flex items-center justify-between w-full flex-wrap gap-y-10">
-                    ${createDiagramNode('Instância A', '<i data-lucide="laptop" class="text-white"></i>')}
-                    ${createArrow('invalidate("key")')}
-                    ${createDiagramNode('Cache L2 (Redis)', '<i data-lucide="database" class="text-purple-400"></i>', 'purple-400')}
-                    ${createArrow('Pub/Sub')}
-                    ${createDiagramNode('Canal de Eventos', '<i data-lucide="radio-tower" class="text-orange-400"></i>', 'orange-400')}
+                <div class="flex items-start justify-between w-full flex-wrap gap-y-10">
+                    ${createDiagramNode('Instância A', '<i data-lucide="laptop" class="text-white w-7 h-7"></i>')}
+                    ${createArrow('invalidate()')}
+                    ${createDiagramNode('Cache L2 (Redis)', '<i data-lucide="database" class="text-purple-400 w-7 h-7"></i>', 'purple-400')}
+                    ${createArrow('Pub/Sub Msg')}
+                    ${createDiagramNode('Canal de Eventos', '<i data-lucide="radio-tower" class="text-orange-400 w-7 h-7"></i>', 'orange-400')}
                     ${createArrow('Notifica')}
-                    ${createDiagramNode('Instância B, C...', '<i data-lucide="server-cog" class="text-slate-400"></i>', 'slate-400')}
+                    ${createDiagramNode('Instâncias B, C...', '<i data-lucide="server-cog" class="text-slate-400 w-7 h-7"></i>', 'slate-400')}
                 </div>
-                <div class="mt-12 text-center text-sm text-slate-400">
-                    <p>A invalidação no L2 dispara um evento, garantindo que todas as instâncias limpem seu cache L1 para manter a consistência.</p>
+                <div class="mt-12 text-center text-sm text-slate-400 max-w-2xl mx-auto">
+                    <p>A invalidação no L2 dispara um evento via Redis Pub/Sub, garantindo que todas as outras instâncias da aplicação limpem seu cache L1 local para manter a consistência dos dados em todo o cluster.</p>
                 </div>`;
             
             if (archTabs.readFlowDiagram) archTabs.readFlowDiagram.innerHTML = readFlowHTML;
@@ -481,22 +592,23 @@ public class ProductService {
                         }
                     };
                     const currentState = states[circuitState];
+                    const colorMapping = { 'red': '#ef4444', 'emerald': '#34d399', 'amber': '#f59e0b' };
 
                     circuitViz.innerHTML = `
-                        <div class="w-full flex justify-center mb-6">
-                             <h3 class="text-xl font-bold">Estado do Circuito</h3>
+                        <div class="w-full flex justify-center mb-4">
+                            <h3 class="text-xl font-bold">Estado do Circuit Breaker</h3>
                         </div>
-                        <div class="flex items-center justify-center w-full mb-8 space-x-2">
-                             <button data-state="CLOSED" class="circuit-btn text-xs font-bold py-2 px-4 rounded-lg border-2 transition-all ${circuitState === 'CLOSED' ? `bg-${currentState.color}-500/20 border-${currentState.color}-500 text-white` : 'border-slate-600 text-slate-400 hover:bg-slate-700'}">Fechado</button>
-                             <button data-state="OPEN" class="circuit-btn text-xs font-bold py-2 px-4 rounded-lg border-2 transition-all ${circuitState === 'OPEN' ? `bg-${currentState.color}-500/20 border-${currentState.color}-500 text-white` : 'border-slate-600 text-slate-400 hover:bg-slate-700'}">Aberto</button>
-                             <button data-state="HALF_OPEN" class="circuit-btn text-xs font-bold py-2 px-4 rounded-lg border-2 transition-all ${circuitState === 'HALF_OPEN' ? `bg-${currentState.color}-500/20 border-${currentState.color}-500 text-white` : 'border-slate-600 text-slate-400 hover:bg-slate-700'}">Semi-Aberto</button>
+                        <div class="flex items-center justify-center w-full mb-6 space-x-2">
+                            <button data-state="CLOSED" class="circuit-btn text-xs font-bold py-2 px-4 rounded-lg border-2 transition-all ${circuitState === 'CLOSED' ? `bg-${currentState.color}-500/20 border-${currentState.color}-500 text-white` : 'border-slate-600 text-slate-400 hover:bg-slate-700'}">Fechado</button>
+                            <button data-state="OPEN" class="circuit-btn text-xs font-bold py-2 px-4 rounded-lg border-2 transition-all ${circuitState === 'OPEN' ? `bg-${currentState.color}-500/20 border-${currentState.color}-500 text-white` : 'border-slate-600 text-slate-400 hover:bg-slate-700'}">Aberto</button>
+                            <button data-state="HALF_OPEN" class="circuit-btn text-xs font-bold py-2 px-4 rounded-lg border-2 transition-all ${circuitState === 'HALF_OPEN' ? `bg-${currentState.color}-500/20 border-${currentState.color}-500 text-white` : 'border-slate-600 text-slate-400 hover:bg-slate-700'}">Semi-Aberto</button>
                         </div>
-                        <div class="text-center my-6 transition-opacity duration-500">
-                            <i data-lucide="${currentState.icon}" class="text-${currentState.color}-400 mx-auto w-16 h-16"></i>
+                        <div class="text-center my-4 transition-opacity duration-500">
+                            <i data-lucide="${currentState.icon}" class="text-${currentState.color}-400 mx-auto w-16 h-16" style="filter: drop-shadow(0 0 15px ${colorMapping[currentState.color]}44);"></i>
                             <h3 class="text-2xl font-bold mt-4 text-${currentState.color}-400">${currentState.title}</h3>
                             <p class="text-slate-400 mt-2 text-sm max-w-xs mx-auto">${currentState.description}</p>
                         </div>`;
-                    lucide.createIcons(); // Re-renderiza ícones após a injeção do HTML
+                    lucide.createIcons();
                 };
 
                 circuitViz.addEventListener('click', (e) => {
@@ -510,6 +622,38 @@ public class ProductService {
                 renderCircuit();
             }
             
+            // --- Lógica para Copiar Código ---
+            document.querySelectorAll('.copy-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const container = button.parentElement;
+                    const code = container.querySelector('pre > code');
+                    const text = code.innerText;
+
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-9999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        button.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>';
+                        lucide.createIcons();
+                        setTimeout(() => {
+                            button.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+                            lucide.createIcons();
+                        }, 2000);
+                    } catch (err) {
+                        console.error('Falha ao copiar para a área de transferência', err);
+                        button.innerHTML = '<i data-lucide="x" class="w-4 h-4 text-red-400"></i>';
+                        lucide.createIcons();
+                    } finally {
+                         document.body.removeChild(textArea);
+                    }
+                });
+            });
+
             // Re-cria os ícones após a renderização dinâmica
             lucide.createIcons();
         });
