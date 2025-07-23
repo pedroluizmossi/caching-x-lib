@@ -247,9 +247,14 @@ public class MultiLevelCacheService implements CacheService {
             try {
                 Object result = future.get();
                 return unwrapNullValue(result);
+            } catch (InterruptedException e) {
+                // Re-interrupt the thread to preserve the interrupted status
+                Thread.currentThread().interrupt();
+                loadingInProgress.remove(key, future);
+                throw new CacheLoadingException("Cache loading was interrupted for key: " + key, e);
             } catch (Exception e) {
                 loadingInProgress.remove(key, future);
-                throw new RuntimeException("Failed to load value for key: " + key, e);
+                throw new CacheLoadingException("Failed to load value for key: " + key, e);
             } finally {
                 loadingInProgress.remove(key, future);
             }
@@ -564,3 +569,4 @@ public class MultiLevelCacheService implements CacheService {
         });
     }
 }
+

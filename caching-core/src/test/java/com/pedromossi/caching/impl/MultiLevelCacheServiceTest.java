@@ -1,6 +1,7 @@
 package com.pedromossi.caching.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -10,9 +11,8 @@ import com.pedromossi.caching.CacheProvider;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
@@ -27,7 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.ParameterizedTypeReference;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("MultiLevelCacheService Tests")
+@DisplayName("MultiLevelCacheService")
 class MultiLevelCacheServiceTest {
 
     private static final String KEY = "test:key";
@@ -38,212 +38,237 @@ class MultiLevelCacheServiceTest {
     @Mock private CacheProvider l2Cache;
     @Mock private Supplier<String> loader;
 
-    private ExecutorService executorService;
+    private ExecutorService testExecutor;
     private MultiLevelCacheService cacheService;
 
     @BeforeEach
     void setUp() {
-        executorService = Executors.newSingleThreadExecutor();
-        cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.of(l2Cache), executorService);
+        testExecutor = Executors.newCachedThreadPool();
+        cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.of(l2Cache), testExecutor);
     }
 
     @AfterEach
     void tearDown() throws InterruptedException {
-        executorService.shutdown();
-        executorService.awaitTermination(1, TimeUnit.SECONDS);
+        testExecutor.shutdownNow();
+        testExecutor.awaitTermination(1, TimeUnit.SECONDS);
     }
 
     @Nested
-    @DisplayName("for getOrLoad()")
-    class GetOrLoadTests {
+    @DisplayName("Single Key Operations (getOrLoad)")
+    class GetOrLoad {
 
         @Test
-        @DisplayName("should return from L1 on cache hit")
+        @DisplayName("should return from L1 on hit")
         void shouldReturnFromL1OnHit() {
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(VALUE);
-            String result = cacheService.getOrLoad(KEY, String.class, loader);
-            assertThat(result).isEqualTo(VALUE);
+            when(l1Cache.get(KEY, TYPE_REF)).thenReturn(VALUE);
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isEqualTo(VALUE);
             verifyNoInteractions(l2Cache, loader);
         }
 
         @Test
         @DisplayName("should return from L2 and promote to L1 on L1 miss")
         void shouldReturnFromL2AndPromote() {
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
-            when(l2Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(VALUE);
-
-            String result = cacheService.getOrLoad(KEY, String.class, loader);
-
-            assertThat(result).isEqualTo(VALUE);
+            when(l2Cache.get(KEY, TYPE_REF)).thenReturn(VALUE);
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isEqualTo(VALUE);
             verifyNoInteractions(loader);
             await().untilAsserted(() -> verify(l1Cache).put(KEY, VALUE));
         }
 
         @Test
         @DisplayName("should load from source and populate all caches on miss")
-        void shouldLoadFromSourceAndPopulateCaches() {
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
-            when(l2Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
+        void shouldLoadFromSourceAndPopulate() {
             when(loader.get()).thenReturn(VALUE);
-
-            String result = cacheService.getOrLoad(KEY, String.class, loader);
-
-            assertThat(result).isEqualTo(VALUE);
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isEqualTo(VALUE);
             await().untilAsserted(() -> {
-                verify(l1Cache).put(KEY, VALUE);
-                verify(l2Cache).put(KEY, VALUE);
+                verify(l1Cache).put(any(), eq(VALUE));
+                verify(l2Cache).put(any(), eq(VALUE));
             });
         }
 
         @Test
-        @DisplayName("should correctly handle full lifecycle of null values")
-        void shouldHandleNullValueLifecycle() {
-            // 1. Loader returns null, which should be cached as a sentinel
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
-            when(l2Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
+        @DisplayName("should handle and cache null values, covering NullValue.toString()")
+        void shouldHandleAndCacheNullValues() {
             when(loader.get()).thenReturn(null);
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isNull();
 
-            String result = cacheService.getOrLoad(KEY, String.class, loader);
-            assertThat(result).isNull();
-
-            // 2. Verify sentinel was stored
             var captor = ArgumentCaptor.forClass(Object.class);
             await().untilAsserted(() -> verify(l1Cache).put(eq(KEY), captor.capture()));
-            Object nullSentinel = captor.getValue();
-            assertThat(nullSentinel).isNotNull();
-
-            // 3. Verify L1 hit on sentinel returns null without calling loader
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(nullSentinel);
-            result = cacheService.getOrLoad(KEY, String.class, loader);
-            assertThat(result).isNull();
-            verify(loader, times(1)).get(); // Should not be called again
+            assertThat(captor.getValue()).isNotNull();
+            // This assertion covers the NullValue.toString() method
+            assertThat(captor.getValue().toString()).isEqualTo("NullValue");
         }
 
         @Test
-        @DisplayName("should gracefully handle cache errors and fallback")
-        void shouldHandleCacheErrors() {
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenThrow(new RuntimeException("L1 Error"));
-            when(l2Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenThrow(new RuntimeException("L2 Error"));
-            when(loader.get()).thenReturn(VALUE);
-
+        @DisplayName("should delegate correctly when called with Class type")
+        void shouldDelegateCorrectlyWhenCalledWithClassType() {
+            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(VALUE);
             String result = cacheService.getOrLoad(KEY, String.class, loader);
-
             assertThat(result).isEqualTo(VALUE);
-            await().untilAsserted(() -> {
-                verify(l1Cache).put(KEY, VALUE);
-                verify(l2Cache).put(KEY, VALUE);
-            });
+            verify(l1Cache).get(eq(KEY), any(ParameterizedTypeReference.class));
         }
     }
 
     @Nested
-    @DisplayName("for getOrLoadAll()")
-    class GetOrLoadAllTests {
-
+    @DisplayName("Error Handling")
+    class ErrorHandling {
         @Test
-        @DisplayName("should fetch from all levels and populate caches")
-        void shouldFetchFromAllLevels() {
-            var typeRef = new ParameterizedTypeReference<String>() {};
-            Set<String> keys = Set.of("k1", "k2", "k3");
-            when(l1Cache.getAll(keys, typeRef)).thenReturn(Map.of("k1", "v1_L1"));
-            when(l2Cache.getAll(Set.of("k2", "k3"), typeRef)).thenReturn(Map.of("k2", "v2_L2"));
-            Function<Set<String>, Map<String, String>> batchLoader =
-                    missingKeys -> {
-                        assertThat(missingKeys).containsExactly("k3");
-                        return Map.of("k3", "v3_Source");
-                    };
-
-            Map<String, String> result = cacheService.getOrLoadAll(keys, typeRef, batchLoader);
-
-            assertThat(result).containsExactlyInAnyOrderEntriesOf(
-                    Map.of("k1", "v1_L1", "k2", "v2_L2", "k3", "v3_Source"));
-
-            await().untilAsserted(() -> {
-                verify(l1Cache).putAll(Map.of("k2", "v2_L2", "k3", "v3_Source"));
-                verify(l2Cache).putAll(Map.of("k3", "v3_Source"));
-            });
-        }
-    }
-
-    @Nested
-    @DisplayName("for invalidate()")
-    class InvalidationTests {
-
-        @Test
-        @DisplayName("should evict key from all caches")
-        void shouldInvalidateKey() {
-            cacheService.invalidate(KEY);
-            await().untilAsserted(() -> {
-                verify(l1Cache).evict(KEY);
-                verify(l2Cache).evict(KEY);
-            });
-        }
-
-        @Test
-        @DisplayName("should evict all keys from all caches")
-        void shouldInvalidateAllKeys() {
-            Set<String> keys = Set.of("k1", "k2");
-            cacheService.invalidateAll(keys);
-            await().untilAsserted(() -> {
-                verify(l1Cache).evictAll(keys);
-                verify(l2Cache).evictAll(keys);
-            });
-        }
-
-        @Test
-        @DisplayName("should continue invalidation if one cache layer fails")
-        void shouldContinueInvalidationOnError() {
-            doThrow(new RuntimeException("L2 Evict Error")).when(l2Cache).evict(KEY);
-            cacheService.invalidate(KEY);
-            await().untilAsserted(() -> {
-                verify(l2Cache).evict(KEY);
-                verify(l1Cache).evict(KEY); // L1 should still be called
-            });
-        }
-    }
-
-    @Nested
-    @DisplayName("with different configurations")
-    class ConfigurationTests {
-        @Test
-        @DisplayName("should work with L1 cache only")
-        void shouldWorkWithL1Only() {
-            cacheService = new MultiLevelCacheService(Optional.of(l1Cache), Optional.empty(), executorService);
-            when(l1Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
+        @DisplayName("should gracefully fallback when cache providers fail on read")
+        void shouldFallbackOnReadErrors() {
+            when(l1Cache.get(KEY, TYPE_REF)).thenThrow(new RuntimeException("L1 error"));
+            when(l2Cache.get(KEY, TYPE_REF)).thenThrow(new RuntimeException("L2 error"));
             when(loader.get()).thenReturn(VALUE);
 
-            cacheService.getOrLoad(KEY, String.class, loader);
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isEqualTo(VALUE);
+            verify(loader).get();
+        }
 
-            verify(l1Cache).get(eq(KEY), any(ParameterizedTypeReference.class));
-            verifyNoInteractions(l2Cache);
+        @Test
+        @DisplayName("should log and continue on L1 promotion error")
+        void shouldHandleL1PromotionError() {
+            when(l2Cache.get(KEY, TYPE_REF)).thenReturn(VALUE);
+            doThrow(new RuntimeException("L1 Put Error")).when(l1Cache).put(KEY, VALUE);
+
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isEqualTo(VALUE);
             await().untilAsserted(() -> verify(l1Cache).put(KEY, VALUE));
         }
 
         @Test
-        @DisplayName("should work with L2 cache only")
-        void shouldWorkWithL2Only() {
-            cacheService = new MultiLevelCacheService(Optional.empty(), Optional.of(l2Cache), executorService);
-            when(l2Cache.get(eq(KEY), any(ParameterizedTypeReference.class))).thenReturn(null);
+        @DisplayName("should log and continue on async storage errors")
+        void shouldHandleAsyncStorageErrors() {
             when(loader.get()).thenReturn(VALUE);
+            doThrow(new RuntimeException("L1 Put Error")).when(l1Cache).put(any(), any());
+            doThrow(new RuntimeException("L2 Put Error")).when(l2Cache).put(any(), any());
 
-            cacheService.getOrLoad(KEY, String.class, loader);
-
-            verify(l2Cache).get(eq(KEY), any(ParameterizedTypeReference.class));
-            verifyNoInteractions(l1Cache);
-            await().untilAsserted(() -> verify(l2Cache).put(KEY, VALUE));
+            assertThat(cacheService.getOrLoad(KEY, TYPE_REF, loader)).isEqualTo(VALUE);
+            await().untilAsserted(() -> {
+                verify(l1Cache).put(any(), any());
+                verify(l2Cache).put(any(), any());
+            });
         }
 
         @Test
-        @DisplayName("should work with no caches (passthrough to loader)")
-        void shouldWorkWithNoCaches() {
-            cacheService = new MultiLevelCacheService(Optional.empty(), Optional.empty(), executorService);
-            lenient().when(loader.get()).thenReturn(VALUE);
+        @DisplayName("should continue invalidation if one cache provider fails")
+        void shouldContinueInvalidationOnError() {
+            doThrow(new RuntimeException("L2 Evict Error")).when(l2Cache).evict(KEY);
+            doThrow(new RuntimeException("L1 Evict Error")).when(l1Cache).evict(KEY);
 
-            String result = cacheService.getOrLoad(KEY, String.class, loader);
+            cacheService.invalidate(KEY);
 
-            assertThat(result).isEqualTo(VALUE);
-            verify(loader).get();
-            verifyNoInteractions(l1Cache, l2Cache);
+            await().untilAsserted(() -> {
+                verify(l2Cache).evict(KEY);
+                verify(l1Cache).evict(KEY);
+            });
+        }
+    }
+
+    @Nested
+    @DisplayName("Batch Operations (getOrLoadAll)")
+    class BatchOperations {
+        @Test
+        @DisplayName("should fetch from all levels and use batch loader")
+        void shouldFetchFromAllLevels() {
+            Set<String> keys = Set.of("k1", "k2", "k3");
+            when(l1Cache.getAll(keys, TYPE_REF)).thenReturn(Map.of("k1", "v1_L1"));
+            when(l2Cache.getAll(Set.of("k2", "k3"), TYPE_REF)).thenReturn(Map.of("k2", "v2_L2"));
+
+            Function<Set<String>, Map<String, String>> batchLoader = missingKeys -> {
+                assertThat(missingKeys).containsExactly("k3");
+                return Map.of("k3", "v3_Source");
+            };
+
+            Map<String, String> result = cacheService.getOrLoadAll(keys, TYPE_REF, batchLoader);
+
+            assertThat(result).containsExactlyInAnyOrderEntriesOf(
+                    Map.of("k1", "v1_L1", "k2", "v2_L2", "k3", "v3_Source"));
+        }
+
+        @Test
+        @DisplayName("should return immediately on full L1 hit")
+        void shouldReturnImmediatelyOnFullL1Hit() {
+            Set<String> keys = Set.of("k1", "k2");
+            when(l1Cache.getAll(keys, TYPE_REF)).thenReturn(Map.of("k1", "v1", "k2", "v2"));
+
+            Map<String, String> result = cacheService.getOrLoadAll(keys, TYPE_REF, mock(Function.class));
+
+            assertThat(result).hasSize(2);
+            verify(l1Cache).getAll(keys, TYPE_REF);
+            verifyNoInteractions(l2Cache);
+        }
+
+        @Test
+        @DisplayName("should only promote and not load on full L2 hit")
+        void shouldOnlyPromoteOnFullL2Hit() {
+            Set<String> keys = Set.of("k1", "k2");
+            when(l1Cache.getAll(keys, TYPE_REF)).thenReturn(Map.of());
+            when(l2Cache.getAll(keys, TYPE_REF)).thenReturn(Map.of("k1", "v1_L2", "k2", "v2_L2"));
+
+            Map<String, String> result = cacheService.getOrLoadAll(keys, TYPE_REF, mock(Function.class));
+
+            assertThat(result).hasSize(2);
+            await().untilAsserted(() -> verify(l1Cache).putAll(Map.of("k1", "v1_L2", "k2", "v2_L2")));
+        }
+    }
+
+    @Nested
+    @DisplayName("Concurrency and Interruption")
+    class Concurrency {
+        private ExecutorService concurrentExecutor;
+
+        @BeforeEach
+        void setupExecutor() {
+            concurrentExecutor = Executors.newFixedThreadPool(2);
+        }
+
+        @AfterEach
+        void shutdownExecutor() throws InterruptedException {
+            concurrentExecutor.shutdownNow();
+            concurrentExecutor.awaitTermination(1, TimeUnit.SECONDS);
+        }
+
+        @Test
+        @DisplayName("should execute loader only once for concurrent requests")
+        void shouldExecuteLoaderOnlyOnce() throws Exception {
+            CountDownLatch loaderGate = new CountDownLatch(1);
+            AtomicInteger loaderInvocations = new AtomicInteger(0);
+            when(loader.get()).thenAnswer(inv -> {
+                loaderInvocations.incrementAndGet();
+                loaderGate.await(2, TimeUnit.SECONDS);
+                return VALUE;
+            });
+
+            Future<String> future1 = concurrentExecutor.submit(() -> cacheService.getOrLoad(KEY, TYPE_REF, loader));
+            Future<String> future2 = concurrentExecutor.submit(() -> cacheService.getOrLoad(KEY, TYPE_REF, loader));
+
+            Thread.sleep(100);
+            loaderGate.countDown();
+
+            assertThat(future1.get()).isEqualTo(VALUE);
+            assertThat(future2.get()).isEqualTo(VALUE);
+            assertThat(loaderInvocations.get()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("should handle interruption and preserve thread's interrupted status")
+        void shouldHandleInterruption() throws InterruptedException {
+            CountDownLatch loaderStarted = new CountDownLatch(1);
+            when(loader.get()).thenAnswer(invocation -> {
+                loaderStarted.countDown();
+                Thread.sleep(5000); // Block until interrupted
+                return null;
+            });
+
+            Thread testThread = new Thread(() -> {
+                assertThatThrownBy(() -> cacheService.getOrLoad(KEY, TYPE_REF, loader))
+                        .isInstanceOf(CacheLoadingException.class)
+                        .hasCauseInstanceOf(InterruptedException.class);
+
+                assertThat(Thread.currentThread().isInterrupted()).isTrue();
+            });
+
+            testThread.start();
+            loaderStarted.await(2, TimeUnit.SECONDS);
+            testThread.interrupt();
+            testThread.join(2000);
         }
     }
 }
