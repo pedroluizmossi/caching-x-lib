@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.pedromossi</groupId>
         <artifactId>caching-x</artifactId>
-        <version>0.0.4</version>
+        <version>0.0.5</version>
     </parent>
 
     <artifactId>caching-redis-adapter</artifactId>
