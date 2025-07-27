@@ -296,7 +296,16 @@ public class RedisCacheAdapter implements CacheProvider {
             log.error("Error deleting key from Redis: {}", key, e);
         }
         try {
-            redisTemplate.convertAndSend(invalidationTopic, key);
+            @SuppressWarnings("unchecked")
+            RedisSerializer<String> keySerializer = (RedisSerializer<String>) redisTemplate.getKeySerializer();
+            byte[] messagePayload = keySerializer.serialize(key);
+
+            assert redisTemplate.getConnectionFactory() != null;
+            assert messagePayload != null;
+            redisTemplate.getConnectionFactory().getConnection().publish(
+                    Objects.requireNonNull(keySerializer.serialize(invalidationTopic)),
+                    messagePayload
+            );
         } catch (Exception e) {
             log.error("Error publishing invalidation message for key: {}", key, e);
         }
@@ -336,9 +345,20 @@ public class RedisCacheAdapter implements CacheProvider {
         } catch (Exception e) {
             log.error("Error deleting multiple keys from Redis: {}", keys, e);
         }
+        @SuppressWarnings("unchecked")
+        RedisSerializer<String> keySerializer = (RedisSerializer<String>) redisTemplate.getKeySerializer();
+        byte[] topicPayload = keySerializer.serialize(invalidationTopic);
+
         keys.forEach(key -> {
             try {
-                redisTemplate.convertAndSend(invalidationTopic, key);
+                byte[] messagePayload = keySerializer.serialize(key);
+                assert redisTemplate.getConnectionFactory() != null;
+                assert topicPayload != null;
+                assert messagePayload != null;
+                redisTemplate.getConnectionFactory().getConnection().publish(
+                        topicPayload,
+                        messagePayload
+                );
             } catch (Exception e) {
                 log.error("Error publishing invalidation message for key: {}", key, e);
             }
